@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User as UserIcon, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
-import { GoogleGenerativeAI } from "@google/genai";
+// Cambiamos a esta forma para evitar el error de exportación
+import * as GoogleGenerativeAIModule from "@google/genai"; 
 import { User, Store, Driver, DailyRole, UserRole } from '../types';
 
 interface SmartAssistantProps {
@@ -124,7 +125,7 @@ if (!apiKey) {
 }
 
 // Inicialización estándar del SDK
-const genAI = new GoogleGenerativeAI(apiKey);
+const genAI = new GoogleGenerativeAIModule.GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const systemInstruction = `
