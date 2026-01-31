@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User as UserIcon, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
 // IMPORTACIÓN CORREGIDA: Usamos el nombre exportado por el SDK oficial
-import { GoogleGenerativeAI } from "@google/genai"; 
+import * as GoogleGenAIModule from "@google/genai"; 
 import { User, Store, Driver, DailyRole, UserRole } from '../types';
 
 interface SmartAssistantProps {
@@ -127,7 +127,7 @@ export const SmartAssistant: React.FC<SmartAssistantProps> = ({ currentUser, sto
       }
 
       // Inicialización del SDK de Google
-      const genAI = new GoogleGenerativeAI(apiKey);
+      const genAI = new GoogleGenAIModule.GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const systemInstruction = `
