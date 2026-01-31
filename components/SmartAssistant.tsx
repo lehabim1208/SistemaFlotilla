@@ -120,15 +120,21 @@ export const SmartAssistant: React.FC<SmartAssistantProps> = ({ currentUser, sto
       };
 
       // CORRECCIÓN VITE: Usamos import.meta.env en lugar de process.env
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY; 
-      
-      if (!apiKey) {
-        throw new Error("API Key no configurada en Vercel");
-      }
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-      // Inicialización del SDK de Google
-      const genAI = new GoogleGenAIModule.GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+if (!apiKey) {
+  throw new Error("API Key no detectada. Revisa los Environment Variables en Vercel.");
+}
+
+// Esta forma detecta si la clase está en la raíz o en .default (común en builds de producción)
+const AIClass = GoogleGenAIModule.GoogleGenerativeAI || (GoogleGenAIModule as any).default?.GoogleGenerativeAI;
+
+if (!AIClass) {
+  throw new Error("No se pudo encontrar el constructor de GoogleGenerativeAI en el módulo.");
+}
+
+const genAI = new AIClass(apiKey);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const systemInstruction = `
         Eres el Smart Assistant de Smart Go Logística.
