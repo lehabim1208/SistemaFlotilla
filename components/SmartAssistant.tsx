@@ -127,7 +127,7 @@ export const SmartAssistant: React.FC<SmartAssistantProps> = ({ currentUser, sto
       }
 
       // Inicialización del SDK de Google
-      const genAI = new GoogleGenAIModule.GoogleGenerativeAI(apiKey);
+      const genAI = new GoogleGenAI.GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const systemInstruction = `
