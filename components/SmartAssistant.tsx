@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User as UserIcon, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
-// Cambiamos a esta forma para evitar el error de exportación
-import * as GoogleGenerativeAIModule from "@google/genai";
+// Importación total para máxima compatibilidad con el empaquetado de producción
+import * as GoogleGenAIModule from "@google/genai";
 import { User, Store, Driver, DailyRole, UserRole } from '../types';
 
 interface SmartAssistantProps {
@@ -118,23 +118,24 @@ export const SmartAssistant: React.FC<SmartAssistantProps> = ({ currentUser, sto
         })),
         historial_reciente: history.slice(0, 10)
       };
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-if (!apiKey) {
-  throw new Error("API Key no configurada en Vercel");
-}
+      // 1. Obtención de API Key (Vite requiere prefijo VITE_)
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) throw new Error("API Key no configurada en Vercel");
 
-// Detectamos el constructor de forma segura para producción
-const AIConstructor = (GoogleGenerativeAIModule as any).GoogleGenerativeAI || 
-                      (GoogleGenerativeAIModule as any).default?.GoogleGenerativeAI;
+      // 2. LÓGICA ROBUSTA DE DETECCIÓN DE CONSTRUCTOR (Soluciona el error void 0)
+      const mod: any = GoogleGenAIModule;
+      const AIConstructor = mod.GoogleGenerativeAI || 
+                           mod.default?.GoogleGenerativeAI || 
+                           (mod.default && typeof mod.default === 'function' ? mod.default : null);
 
-if (!AIConstructor) {
-  throw new Error("No se pudo encontrar el constructor en el módulo de Google");
-}
+      if (!AIConstructor) {
+        throw new Error("No se pudo localizar el constructor de GoogleGenerativeAI en el módulo.");
+      }
 
-const genAI = new AIConstructor(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      
+      // 3. Inicialización del SDK
+      const genAI = new AIConstructor(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const systemInstruction = `
         Eres el Smart Assistant de Smart Go Logística.
@@ -143,7 +144,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         DATOS: ${JSON.stringify(dataMap)}
       `;
 
-      // Llamada corregida al modelo
+      // 4. Ejecución de consulta
       const result = await model.generateContent(`${systemInstruction}\n\nUsuario: ${userMsg}`);
       const response = await result.response;
       const botText = response.text();
@@ -151,7 +152,10 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       setMessages(prev => [...prev, { role: 'bot', text: botText }]);
     } catch (error: any) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: 'bot', text: "Error de conexión. Verifica la API Key en Vercel." }]);
+      const errorMsg = error.message?.includes("API Key") 
+        ? "Error: Clave de acceso no encontrada en el servidor." 
+        : "Error de sincronización con el núcleo. Intenta de nuevo.";
+      setMessages(prev => [...prev, { role: 'bot', text: errorMsg }]);
     } finally {
       setIsTyping(false);
     }
@@ -161,41 +165,65 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     <>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-[100] w-14 h-14 bg-blue-600 rounded-2xl shadow-xl flex items-center justify-center text-white transition-all border border-white/20"
+        className="fixed bottom-6 right-6 z-[100] w-14 h-14 bg-blue-600 rounded-2xl shadow-xl flex items-center justify-center text-white transition-all border border-white/20 active:scale-95"
       >
         {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-[100] w-[92vw] md:w-[480px] h-[80vh] liquid-glass rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl">
-          <div className="p-6 bg-blue-600 flex items-center gap-4 shrink-0">
-            <Bot className="text-white" size={28} />
+        <div className="fixed bottom-24 right-6 z-[100] w-[92vw] md:w-[480px] h-[80vh] liquid-glass rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl border border-white/10 animate-in slide-in-from-bottom-5">
+          <div className="p-6 bg-blue-600 flex items-center gap-4 shrink-0 shadow-lg">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md">
+              <Bot className="text-white" size={24} />
+            </div>
             <div className="flex-1">
-              <h3 className="text-white font-black uppercase text-xs">Smart Assistant</h3>
-              <span className="text-[9px] text-white/70 uppercase">Núcleo Activo</span>
+              <h3 className="text-white font-black uppercase text-[10px] tracking-widest">Smart Assistant</h3>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+                <span className="text-[8px] text-white/70 font-bold uppercase tracking-tighter">Conexión Segura</span>
+              </div>
             </div>
           </div>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-black/5">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-4 rounded-2xl text-[11px] ${m.role === 'user' ? 'bg-blue-600 text-white' : 'theme-bg-subtle theme-text-main border theme-border'}`}>
+                <div className={`p-4 rounded-2xl text-[11px] max-w-[85%] ${
+                  m.role === 'user' 
+                    ? 'bg-blue-600 text-white rounded-tr-none shadow-md' 
+                    : 'theme-bg-subtle theme-text-main border theme-border rounded-tl-none shadow-sm'
+                }`}>
                   <FormattedMessage text={m.text} />
                 </div>
               </div>
             ))}
-            {isTyping && <Loader2 className="animate-spin text-blue-500 mx-auto" size={20} />}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-3 p-3 theme-bg-subtle rounded-2xl border theme-border">
+                  <Loader2 className="animate-spin text-blue-500" size={14} />
+                  <span className="text-[9px] font-black uppercase theme-text-muted tracking-widest">Procesando...</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          <form onSubmit={handleSendMessage} className="p-4 border-t theme-border bg-black/20">
+          <form onSubmit={handleSendMessage} className="p-4 border-t theme-border bg-black/20 backdrop-blur-md">
             <div className="flex gap-2">
               <input 
-                className="flex-1 glass-input rounded-xl px-4 py-3 text-xs outline-none"
-                placeholder="Pregunta algo..."
+                className="flex-1 glass-input rounded-xl px-4 py-3 text-xs outline-none border border-white/5 focus:border-blue-500/50 transition-all"
+                placeholder="Preguntar sobre conductores o historial..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
               />
-              <button type="submit" className="bg-blue-600 text-white p-3 rounded-xl"><Send size={18} /></button>
+              <button 
+                type="submit" 
+                disabled={!input.trim() || isTyping}
+                className={`p-3 rounded-xl transition-all ${
+                  input.trim() && !isTyping ? 'bg-blue-600 text-white shadow-lg scale-105 active:scale-95' : 'bg-white/5 text-white/20'
+                }`}
+              >
+                <Send size={18} />
+              </button>
             </div>
           </form>
         </div>
