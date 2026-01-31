@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User as UserIcon, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
 // Cambiamos a esta forma para evitar el error de exportación
-import * as GoogleGenerativeAIModule from "@google/genai"; 
+import * as GoogleGenerativeAIModule from "@google/genai";
 import { User, Store, Driver, DailyRole, UserRole } from '../types';
 
 interface SmartAssistantProps {
@@ -124,9 +124,17 @@ if (!apiKey) {
   throw new Error("API Key no configurada en Vercel");
 }
 
-// Inicialización estándar del SDK
-const genAI = new GoogleGenerativeAIModule.GoogleGenerativeAI(apiKey);
+// Detectamos el constructor de forma segura para producción
+const AIConstructor = (GoogleGenerativeAIModule as any).GoogleGenerativeAI || 
+                      (GoogleGenerativeAIModule as any).default?.GoogleGenerativeAI;
+
+if (!AIConstructor) {
+  throw new Error("No se pudo encontrar el constructor en el módulo de Google");
+}
+
+const genAI = new AIConstructor(apiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
 
       const systemInstruction = `
         Eres el Smart Assistant de Smart Go Logística.
