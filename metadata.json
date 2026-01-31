@@ -1,0 +1,7 @@
+{
+  "name": "DriverRole - Sistema de Gestión de Roles",
+  "description": "Sistema de asignación de roles para conductores con algoritmo de descanso equitativo y diseño Liquid Glass.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
