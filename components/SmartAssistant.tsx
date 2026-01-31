@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Bot, User as UserIcon, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
-// IMPORTACIÓN CORREGIDA: Usamos el nombre exportado por el SDK oficial
-import * as GoogleGenAIModule from "@google/genai"; 
+import { GoogleGenerativeAI } from "@google/genai";
 import { User, Store, Driver, DailyRole, UserRole } from '../types';
 
 interface SmartAssistantProps {
@@ -118,22 +117,14 @@ export const SmartAssistant: React.FC<SmartAssistantProps> = ({ currentUser, sto
         })),
         historial_reciente: history.slice(0, 10)
       };
-
-      // CORRECCIÓN VITE: Usamos import.meta.env en lugar de process.env
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!apiKey) {
-  throw new Error("API Key no detectada. Revisa los Environment Variables en Vercel.");
+  throw new Error("API Key no configurada en Vercel");
 }
 
-// Esta forma detecta si la clase está en la raíz o en .default (común en builds de producción)
-const AIClass = GoogleGenAIModule.GoogleGenerativeAI || (GoogleGenAIModule as any).default?.GoogleGenerativeAI;
-
-if (!AIClass) {
-  throw new Error("No se pudo encontrar el constructor de GoogleGenerativeAI en el módulo.");
-}
-
-const genAI = new AIClass(apiKey);
+// Inicialización estándar del SDK
+const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const systemInstruction = `
