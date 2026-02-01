@@ -3,8 +3,18 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>DriverRole System</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DriversRol" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2555/2555013.png" />
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -97,9 +107,33 @@
         100% { transform: translate(50px, 500px) scale(1.1); }
       }
     </style>
+    <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "qrcode": "https://esm.sh/qrcode@^1.5.3",
+    "otpauth": "https://esm.sh/otpauth@^9.3.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.39.0",
+    "jszip": "https://esm.sh/jszip@^3.10.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.39.0"
+  }
+}
+</script>
   </head>
   <body>
     <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+    <script>
+      // Registro del Service Worker para PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('PWA Service Worker registrado', reg))
+            .catch(err => console.error('Error al registrar PWA Service Worker', err));
+        });
+      }
+    </script>
   </body>
 </html>

@@ -15,9 +15,6 @@ import { History } from './pages/History';
 import { Settings } from './pages/Settings';
 import { Scanner } from './pages/Scanner';
 
-// Components
-import { SmartAssistant } from './components/SmartAssistant';
-
 const DEFAULT_SETTINGS: UserSettings = {
   themeColor: 'indigo',
   darkMode: true,
@@ -306,15 +303,6 @@ export const App: React.FC = () => {
               {activeTab === 'history' && <History history={history} currentUser={currentUser} onUpdateRole={(r) => setHistory(history.map(h => h.id === r.id ? r : h))} />}
               {activeTab === 'settings' && <Settings currentUser={currentUser} onUpdateUser={updateUser} onAccountDeleted={handleLogout} />}
             </div>
-            
-            {/* IA SMART ASSISTANT INTEGRATION */}
-            <SmartAssistant 
-              currentUser={currentUser}
-              stores={stores}
-              drivers={drivers}
-              history={history}
-              users={users} // PASAMOS LA LISTA DE USUARIOS
-            />
 
             <footer className="mt-12 py-6 border-t theme-border text-center opacity-40 text-[6px] font-bold theme-text-muted uppercase tracking-widest">
               Sistema de Gestión Smart Go | Por Lehabim Cruz
