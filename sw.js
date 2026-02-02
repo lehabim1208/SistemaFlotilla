@@ -3,11 +3,10 @@ const CACHE_NAME = 'driversrol-v1';
 const ASSETS = [
   '/',
   '/index.html',
-  '/index.tsx',
-  '/App.tsx',
-  '/types.ts',
-  '/constants.tsx'
+  '/manifest.json',
+  // No incluyas .tsx o .ts aquí, ya que en producción no existen
 ];
+
 
 // Instalación: Guardar recursos básicos en caché
 self.addEventListener('install', (event) => {
