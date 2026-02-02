@@ -188,7 +188,6 @@ export const App: React.FC = () => {
 
   const handleAddDriver = (d: Partial<Driver>) => {
     const id = `d${Date.now()}`;
-    // Generamos una qrCodeKey explícita para asegurar que el escáner lo reconozca
     const newDriver: Driver = { 
       ...d, 
       id, 
@@ -215,7 +214,7 @@ export const App: React.FC = () => {
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="theme-text-main p-2 rounded-xl transition-colors mr-4">
             {isSidebarOpen ? <X /> : <Menu />}
           </button>
-          <div className="flex items-center gap-2 theme-text-main font-black uppercase text-xl">DriversRol</div>
+          <div className="flex items-center gap-2 theme-text-main font-black uppercase text-xl">Sistema Logística</div>
         </div>
       )}
       {isSidebarOpen && currentUser && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[65] md:hidden" onClick={() => setIsSidebarOpen(false)} />}
@@ -261,7 +260,7 @@ export const App: React.FC = () => {
       ) : (
         <>
           <aside className={`fixed inset-y-0 left-0 z-[70] w-72 theme-bg-surface border-r theme-border p-6 flex flex-col transition-transform duration-500 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-            <div className="flex items-center gap-3 theme-text-main mb-12 px-2 text-2xl font-black uppercase tracking-tighter">DriversRol</div>
+            <div className="flex items-center gap-3 theme-text-main mb-12 px-2 text-2xl font-black uppercase tracking-tighter">Sistema Logística</div>
             <nav className="space-y-1">
               {[
                 { id: 'dashboard', label: 'Dashboard', icon: HistoryIcon, role: 'all' },
