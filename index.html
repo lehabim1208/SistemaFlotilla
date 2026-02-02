@@ -116,7 +116,7 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       // El punto inicial ./ es clave para rutas en la raíz
-      navigator.serviceWorker.register('./sw.js')
+      navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('Service Worker Activo', reg.scope))
         .catch(err => console.error('Error al registrar SW', err));
     });
