@@ -1,10 +1,10 @@
 
 const CACHE_NAME = 'driversrol-v1';
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  // No incluyas .tsx o .ts aquí, ya que en producción no existen
+  './',
+  './index.html',
+  './manifest.json',
+  './icono.png'
 ];
 
 
