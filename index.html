@@ -108,23 +108,19 @@
       }
     </style>
     <script type="module" src="./index.tsx"></script>
-    <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "qrcode": "https://esm.sh/qrcode@^1.5.3",
-    "otpauth": "https://esm.sh/otpauth@^9.3.1",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.39.0",
-    "jszip": "https://esm.sh/jszip@^3.10.1",
-    "@google/genai": "https://esm.sh/@google/genai@^1.39.0"
-  }
-}
-</script>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      // El punto inicial ./ es clave para rutas en la raíz
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker Activo', reg.scope))
+        .catch(err => console.error('Error al registrar SW', err));
+    });
+  }
+    </script>
+    
   </body>
 </html>
