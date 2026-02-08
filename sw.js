@@ -1,11 +1,13 @@
-const CACHE_NAME = 'driveflow-v3-final';
+
+const CACHE_NAME = 'driveflow-v4-core';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/logo.png' // Cambiado a tu archivo local
+  '/metadata.json'
 ];
 
+// Instalación: Cacheamos el núcleo de la App
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -15,38 +17,48 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// Activación: Limpieza de versiones antiguas
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) return caches.delete(key);
-        })
-      );
+      return Promise.all(keys.map((key) => {
+        if (key !== CACHE_NAME) return caches.delete(key);
+      }));
     })
   );
   self.clients.claim();
 });
 
+// Intercepción de peticiones: Soporte Offline Total
 self.addEventListener('fetch', (event) => {
-  if (event.request.url.includes('supabase.co') || event.request.url.includes('googleapis.com')) {
+  // No cachear peticiones a Supabase para evitar datos fantasmas
+  if (event.request.url.includes('supabase.co')) return;
+
+  // Manejo de navegación (Recargas de página)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/index.html'))
+    );
     return;
   }
 
+  // Estrategia: Cache First para assets y librerías externas
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request).then((response) => {
-        if (!response || response.status !== 200) return response;
-        
-        // Solo cacheamos recursos seguros y librerías de esm.sh
-        if (response.type === 'basic' || event.request.url.includes('esm.sh')) {
+      if (cachedResponse) return cachedResponse;
+
+      return fetch(event.request).then((response) => {
+        // Cachear dinámicamente librerías de esm.sh y fuentes
+        if (response.status === 200 && (event.request.url.includes('esm.sh') || event.request.url.includes('fonts.googleapis.com'))) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
           });
         }
         return response;
-      }).catch(() => null)
+      }).catch(() => {
+        // Fallback silencioso si no hay red ni cache
+      });
     })
   );
 });

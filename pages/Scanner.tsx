@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, QrCode, ShieldCheck, XCircle, RefreshCw, AlertCircle, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, Landmark, Clock, Store as StoreIcon, ShieldAlert } from 'lucide-react';
+import { Camera, QrCode, ShieldCheck, XCircle, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, MapPin, User as UserIcon, Wallet, FileText, BadgeCheck, ShieldAlert } from 'lucide-react';
 import { GlassCard, Button, Modal } from '../components/UI';
 import { Driver, Store } from '../types';
 
@@ -13,19 +13,16 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<Driver | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [validationTime, setValidationTime] = useState<string>('');
   const [showMore, setShowMore] = useState(false);
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  
   const [jsQR, setJsQR] = useState<any>(null);
 
   useEffect(() => {
     const handleFocus = () => setIsWindowFocused(true);
     const handleBlur = () => setIsWindowFocused(false);
-
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
     
@@ -34,23 +31,12 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
         const mod = await import('https://esm.sh/jsqr@1.4.0');
         setJsQR(() => mod.default);
       } catch (err) {
-        console.error("Error loading jsQR:", err);
         setError("No se pudo inicializar el motor de escaneo.");
       }
     };
-
     loadScannerEngine();
-    
-    const timer = setInterval(() => {
-      const now = new Date();
-      setValidationTime(now.toLocaleString('es-MX', { 
-        hour12: false, day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', second: '2-digit' 
-      }));
-    }, 1000);
 
     return () => {
-      clearInterval(timer);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
@@ -77,22 +63,9 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
     }
   };
 
-  const formatMonthYear = (dateStr?: string) => {
-    if (!dateStr) return 'S/F';
-    const parts = dateStr.split('-');
-    if (parts.length < 2) return 'S/F';
-    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-    return `${months[parseInt(parts[1]) - 1]} ${parts[0]}`;
-  };
-
   const handleProcessImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!jsQR) {
-      setError("Inicializando motor...");
-      return;
-    }
+    if (!file || !jsQR) return;
 
     setProcessing(true);
     setError(null);
@@ -105,11 +78,7 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) {
-          setError("Procesador gráfico ocupado.");
-          setProcessing(false);
-          return;
-        }
+        if (!ctx) { setProcessing(false); return; }
 
         const maxDim = 1024;
         let scale = 1;
@@ -125,16 +94,14 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
 
           if (code && code.data) {
             const scannedData = code.data.trim();
-            const found = (drivers || []).find(d => 
-              d.qrCodeKey === scannedData || d.id === scannedData || `SG-ID-${d.id}` === scannedData || `SG-DRV-${d.id}` === scannedData
-            );
+            const found = drivers.find(d => d.qrCodeKey === scannedData || d.id === scannedData || `SG-ID-${d.id}` === scannedData);
             if (found) setResult(found);
-            else setError("GAFETE NO RECONOCIDO.");
+            else setError("GAFETE NO RECONOCIDO EN LA BASE DE DATOS.");
           } else {
-            setError("NO SE ENCONTRÓ QR.");
+            setError("NO SE DETECTÓ NINGÚN CÓDIGO QR VÁLIDO.");
           }
         } catch (err) {
-          setError("ERROR DE ANÁLISIS.");
+          setError("ERROR AL PROCESAR LA IMAGEN.");
         }
         setProcessing(false);
       };
@@ -143,79 +110,128 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
     reader.readAsDataURL(file);
   };
 
-  const getStoreNames = (ids: string[]) => ids.map(id => stores.find(s => s.id === id)?.name || id).join(', ');
-
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
       <header className="flex flex-col gap-1">
-        <h2 className="text-2xl md:text-4xl font-black theme-text-main uppercase tracking-tighter leading-none">Validación</h2>
-        <p className="theme-text-muted text-[10px] md:text-xs font-black uppercase tracking-[0.2em]">SmartGo en tiempo real</p>
+        <h2 className="text-2xl md:text-3xl font-black theme-text-main uppercase tracking-tighter leading-none">Escáner de Validación</h2>
+        <p className="theme-text-muted text-[10px] font-black uppercase tracking-[0.2em]">Verificación de Identidad SmartGo</p>
       </header>
 
       <div className="max-w-2xl mx-auto py-8">
-        <GlassCard className="p-8 md:p-12 flex flex-col items-center justify-center text-center space-y-10 border-dashed border-2 theme-border">
-          <div className={`w-32 h-32 rounded-[3rem] flex items-center justify-center border-2 transition-all duration-700 shadow-2xl ${processing ? 'bg-indigo-600/30 border-indigo-500 animate-pulse scale-110' : 'theme-bg-subtle border-blue-500/30 shadow-[0_0_40px_rgba(59,130,246,0.15)] animate-qr-pulse'}`}>
-            {processing ? <Loader2 className="text-indigo-400 w-12 h-12 animate-spin" /> : <QrCode className="text-blue-400 w-12 h-12" />}
+        <GlassCard className="p-10 flex flex-col items-center justify-center text-center space-y-10 border-dashed border-2 theme-border relative overflow-hidden">
+          <div className={`w-32 h-32 rounded-[3rem] flex items-center justify-center border-2 transition-all duration-700 shadow-2xl ${processing ? 'bg-blue-600/30 border-blue-500 animate-pulse scale-110' : 'theme-bg-subtle border-blue-500/30'}`}>
+            {processing ? <Loader2 className="text-blue-400 w-12 h-12 animate-spin" /> : <QrCode className="text-blue-400 w-12 h-12" />}
           </div>
           <div className="space-y-3">
-            <h3 className="text-2xl font-black theme-text-main uppercase">{processing ? 'Verificando...' : 'Validar Gafete'}</h3>
-            <p className="theme-text-muted text-[10px] max-w-sm mx-auto font-black uppercase tracking-widest leading-relaxed">Escanee el código institucional para confirmar vigencia y accesos.</p>
+            <h3 className="text-xl font-black theme-text-main uppercase tracking-tight">{processing ? 'Verificando Expediente...' : 'Validar Gafete Institucional'}</h3>
+            <p className="theme-text-muted text-[10px] max-w-xs mx-auto font-black uppercase tracking-widest leading-relaxed">Posicione el código QR del gafete frente a la cámara o suba una foto nítida.</p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md justify-center">
-            <Button onClick={() => cameraInputRef.current?.click()} disabled={processing || !jsQR} className="flex-1 py-5 uppercase font-black tracking-widest text-[9px] bg-blue-600 shadow-xl shadow-blue-900/40"><Camera size={18} /> CÁMARA</Button>
-            <Button onClick={() => galleryInputRef.current?.click()} disabled={processing || !jsQR} variant="outline" className="flex-1 py-5 uppercase font-black tracking-widest text-[9px]"><ImageIcon size={18} /> GALERÍA</Button>
+          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+            <Button onClick={() => cameraInputRef.current?.click()} disabled={processing} className="flex-1 py-5 uppercase font-black tracking-widest text-[9px] bg-blue-600 shadow-xl shadow-blue-900/40"><Camera size={18} /> USAR CÁMARA</Button>
+            <Button onClick={() => galleryInputRef.current?.click()} disabled={processing} variant="outline" className="flex-1 py-5 uppercase font-black tracking-widest text-[9px]"><ImageIcon size={18} /> SUBIR FOTO</Button>
           </div>
           <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleProcessImage} />
           <input type="file" ref={galleryInputRef} className="hidden" accept="image/*" onChange={handleProcessImage} />
         </GlassCard>
       </div>
 
-      <Modal isOpen={!!error} onClose={() => setError(null)} title="ATENCIÓN">
+      <Modal isOpen={!!error} onClose={() => setError(null)} title="ERROR DE VALIDACIÓN">
         <div className="text-center space-y-6 p-4">
-          <div className="w-16 h-16 bg-rose-500/10 rounded-full mx-auto flex items-center justify-center border border-rose-500/20"><XCircle className="w-8 h-8 text-rose-500" /></div>
+          <XCircle className="w-16 h-16 text-rose-500 mx-auto" />
           <p className="theme-text-main text-sm font-black uppercase tracking-tight">{error}</p>
           <Button variant="danger" className="w-full py-4 uppercase font-black text-[10px]" onClick={() => setError(null)}>Reintentar</Button>
         </div>
       </Modal>
 
-      <Modal isOpen={!!result} onClose={() => { setResult(null); setShowMore(false); }} title="CERTIFICADO">
+      <Modal isOpen={!!result} onClose={() => { setResult(null); setShowMore(false); }} title="EXPEDIENTE VERIFICADO">
         {result && (
-          <div className={`relative space-y-6 pt-4 transition-all duration-500 ${!isWindowFocused ? 'blur-3xl' : ''}`}>
+          <div className={`relative space-y-6 pt-4 transition-all duration-700 ${!isWindowFocused ? 'blur-2xl grayscale' : ''}`}>
+            {/* Header del Perfil */}
             <div className="flex flex-col items-center text-center">
-              <div className={`w-32 h-32 rounded-[2.5rem] border-4 overflow-hidden mb-6 theme-bg-subtle shadow-2xl ${result.isActive ? 'border-emerald-500' : 'border-rose-500'}`}>
-                {result.photoUrl ? <img src={result.photoUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-4xl font-black theme-text-muted opacity-10 uppercase">{result.fullName?.charAt(0)}</div>}
+              <div className={`w-32 h-32 rounded-[3rem] border-4 overflow-hidden mb-6 theme-bg-subtle shadow-2xl ${result.isActive ? 'border-emerald-500 shadow-emerald-500/20' : 'border-rose-500 shadow-rose-500/20'}`}>
+                {result.photoUrl ? <img src={result.photoUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserIcon size={48} className="theme-text-muted opacity-20" /></div>}
               </div>
-              <h3 className="text-2xl font-black theme-text-main uppercase mb-1">{result.fullName}</h3>
-              <div className="flex flex-col items-center gap-2 mt-2">
-                <p className="text-blue-500 font-mono font-black tracking-widest text-[9px] bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">{result.teamCode}</p>
-                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${getCofeprisBadgeStyles(calculateCofeprisStatus(result.cofepris_expiration || ''))}`}>
-                  <ShieldCheck size={10} />
-                  <span className="text-[8px] font-black uppercase tracking-widest">Cofepris: {calculateCofeprisStatus(result.cofepris_expiration || '').toUpperCase()}</span>
-                </div>
-              </div>
-              <div className={`w-full mt-6 py-4 rounded-2xl flex items-center justify-center gap-3 border-2 ${result.isActive ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-600' : 'bg-rose-600/10 border-rose-500/20 text-rose-600'}`}>
-                {result.isActive ? <ShieldCheck className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
-                <p className="text-sm font-black uppercase">{result.isActive ? 'ACTIVO' : 'BLOQUEADO'}</p>
+              <h3 className="text-2xl font-black theme-text-main uppercase mb-1 tracking-tight leading-tight px-4">{result.fullName}</h3>
+              <div className="flex flex-wrap justify-center gap-2 mt-3">
+                <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-blue-600/10 text-blue-500 border border-blue-500/20 rounded-xl tracking-widest">{result.teamCode}</span>
+                <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl border tracking-widest ${result.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
+                   {result.isActive ? <BadgeCheck size={12} className="inline mr-1" /> : <ShieldAlert size={12} className="inline mr-1" />}
+                   {result.isActive ? 'GAFETE ACTIVO' : 'SISTEMA BLOQUEADO'}
+                </span>
               </div>
             </div>
-            <div className="space-y-3">
-               <button onClick={() => setShowMore(!showMore)} className="w-full py-3 theme-bg-subtle border theme-border rounded-xl text-[9px] font-black uppercase text-blue-500">{showMore ? 'Ocultar' : 'Ver Detalles'}</button>
+            
+            <div className="space-y-4">
+               <button 
+                onClick={() => setShowMore(!showMore)} 
+                className="w-full py-5 theme-bg-subtle border theme-border rounded-[2rem] text-[11px] font-black uppercase text-blue-500 flex items-center justify-center gap-3 transition-all hover:bg-blue-600/5 active:scale-95"
+               >
+                 {showMore ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                 {showMore ? 'Ocultar Información' : 'Ver Expediente Completo'}
+               </button>
+
                {showMore && (
-                 <div className="space-y-2 animate-in slide-in-from-top-2">
-                    <div className="p-3 theme-bg-subtle rounded-xl border theme-border"><p className="text-[7px] font-black theme-text-muted uppercase">CURP</p><p className="text-[10px] font-mono theme-text-main">{result.curp || '---'}</p></div>
-                    <div className="p-3 theme-bg-subtle rounded-xl border theme-border"><p className="text-[7px] font-black theme-text-muted uppercase">Sedes</p><p className="text-[10px] font-black theme-text-main uppercase">{getStoreNames(result.assignedStoreIds || [])}</p></div>
+                 <div className="space-y-6 animate-in slide-in-from-top-6 duration-500 pb-2">
+                    {/* Sección 1: Identidad Legal */}
+                    <div className="grid grid-cols-2 gap-3">
+                       {[
+                         { l: 'CURP Oficial', v: result.curp || 'S/N' },
+                         { l: 'RFC Fiscal', v: result.rfc || 'S/N' },
+                         { l: 'Número SS', v: result.nss || 'S/N' },
+                         { l: 'Estado Sanitario', v: calculateCofeprisStatus(result.cofepris_expiration || '').toUpperCase(), extra: result.cofepris_expiration }
+                       ].map((item, i) => (
+                         <div key={i} className="p-4 theme-bg-subtle rounded-2xl border theme-border shadow-sm">
+                           <p className="text-[8px] font-black theme-text-muted uppercase mb-1 tracking-widest">{item.l}</p>
+                           <p className={`text-[11px] font-black theme-text-main truncate ${i === 3 ? getCofeprisBadgeStyles(item.v.toLowerCase()).split(' ')[1] : ''}`}>{item.v}</p>
+                           {item.extra && <p className="text-[7px] font-bold theme-text-muted mt-1 uppercase opacity-60">Vence: {item.extra.split('-').reverse().join('/')}</p>}
+                         </div>
+                       ))}
+                    </div>
+
+                    {/* Sección 2: Finanzas y Sedes */}
+                    <div className="p-5 theme-bg-subtle rounded-[2.5rem] border theme-border space-y-5 shadow-2xl relative overflow-hidden">
+                       <div className="absolute top-0 right-0 p-4 opacity-[0.03]"><Wallet size={80} /></div>
+                       <div className="flex items-center gap-2 border-b theme-border pb-3">
+                          <MapPin size={16} className="text-blue-500" />
+                          <h5 className="text-[11px] font-black theme-text-main uppercase tracking-widest">Sedes y Tarifas Pactadas</h5>
+                       </div>
+                       <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                          {(result.assignedStoreIds || []).length === 0 ? (
+                            <div className="text-center py-8 opacity-20"><FileText size={40} className="mx-auto mb-2" /><p className="text-[10px] font-black uppercase">Sin asignaciones registradas</p></div>
+                          ) : (
+                            (result.assignedStoreIds || []).map(sid => {
+                               const store = stores.find(s => s.id === sid);
+                               const fin = result.storeFinances?.[sid] || { dailyWage: result.dailyWage || 0, dailyGas: result.dailyGas || 0 };
+                               return (
+                                 <div key={sid} className="flex justify-between items-center p-4 bg-black/20 rounded-2xl border theme-border group hover:border-blue-500/40 transition-colors">
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[12px] font-black theme-text-main uppercase truncate leading-none mb-1">{store?.name || 'Sede Especial'}</span>
+                                      <span className="text-[9px] text-blue-500 font-black uppercase tracking-tighter opacity-70">{store?.code || 'SG-CODE'}</span>
+                                    </div>
+                                    <div className="flex gap-6 text-right flex-shrink-0">
+                                       <div className="space-y-0.5">
+                                         <p className="text-[7px] font-black theme-text-muted uppercase tracking-tighter">Sueldo</p>
+                                         <p className="text-[13px] font-black text-emerald-500 leading-none">${fin.dailyWage}</p>
+                                       </div>
+                                       <div className="space-y-0.5">
+                                         <p className="text-[7px] font-black theme-text-muted uppercase tracking-tighter">Gasolina</p>
+                                         <p className="text-[13px] font-black text-amber-500 leading-none">${fin.dailyGas}</p>
+                                       </div>
+                                    </div>
+                                 </div>
+                               );
+                            })
+                          )}
+                       </div>
+                    </div>
                  </div>
                )}
             </div>
-            <Button onClick={() => { setResult(null); setShowMore(false); }} className="w-full py-5 font-black uppercase text-[10px] bg-blue-600">Cerrar</Button>
+            
+            <Button onClick={() => { setResult(null); setShowMore(false); }} className="w-full py-6 font-black uppercase text-[11px] bg-blue-600 shadow-2xl shadow-blue-900/50 tracking-[0.2em] border-2 border-blue-400/20 active:scale-95 transition-all">Finalizar Consulta</Button>
           </div>
         )}
       </Modal>
-
-      <style>{`
-        @keyframes qr-pulse { 0% { transform: scale(1); } 70% { transform: scale(1.05); } 100% { transform: scale(1); } }
-        .animate-qr-pulse { animation: qr-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1); }
-      `}</style>
     </div>
   );
 };
