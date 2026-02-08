@@ -35,6 +35,7 @@ export interface UserSettings {
 export interface User {
   id: string;
   username: string;
+  name?: string;
   password?: string;
   role: UserRole;
   assignedStoreIds: string[];
@@ -62,7 +63,6 @@ export interface Driver {
   fullName: string;
   assignedStoreIds: string[];
   teamCode: string;
-  baseSchedule: string;
   status: DriverStatus;
   curp?: string;
   rfc?: string;
@@ -70,6 +70,8 @@ export interface Driver {
   photoUrl?: string;
   isActive: boolean;
   qrCodeKey?: string;
+  cofepris_expiration?: string;
+  cofepris_status?: string;
   // Mapa de finanzas: storeId -> { wage, gas }
   storeFinances: Record<string, DriverStoreFinance>;
   // Fallbacks para compatibilidad

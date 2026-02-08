@@ -199,7 +199,7 @@ export const SmartAssistant: React.FC<SmartAssistantProps> = ({ currentUser, sto
         1. Responde DIRECTAMENTE. Tienes ACCESO TOTAL a los expedientes de los conductores.
         2. Si preguntan por CURP, RFC, NSS o estatus de un ID de flota (ej: W_SMARTGO_39), búscalo en la lista 'conductores'.
         3. No digas que no tienes alcance a la información si el dato está en 'conductores'.
-        4. Sé exacto con los datos financieros y horarios.
+        4. Sé exacto con los datos financieros y horarios (los cuales ahora se manejan por sede, no por conductor individual).
         
         DATOS INTEGRALES DEL SISTEMA:
         ${JSON.stringify(dataMap)}

@@ -1,16 +1,21 @@
 
 import { Store, User, UserRole, Driver, DriverStatus } from './types';
 
+// SEDES REALES
 export const INITIAL_STORES: Store[] = [
-  { id: '1', name: 'Walmart Cristal', code: 'W_CRISTAL' },
-  { id: '2', name: 'Bodega Aurrerá Casa Blanca', code: 'BA_CBLANCA' },
-  { id: '3', name: 'Walmart Express', code: 'W_EXPRESS' },
+  { id: 's1', name: 'Bodega Aurrera Altotonga', code: 'BA_ALTO' },
+  { id: 's2', name: 'Bodega Aurrera Naranjos', code: 'BA_NARANJOS' },
+  { id: 's3', name: 'Walmart Cristal', code: 'W_CRISTAL' },
+  { id: 's4', name: 'Bodega Aurrerá Casa Blanca', code: 'BA_CBLANCA' },
+  { id: 's5', name: 'Walmart Express', code: 'W_EXPRESS' },
 ];
 
+// USUARIOS REALES
 export const INITIAL_USERS: User[] = [
   { 
     id: 'u0', 
     username: 'superadmin', 
+    password: 'lehabim12',
     role: UserRole.SUPERADMIN, 
     assignedStoreIds: [],
     isTwoFactorEnabled: false 
@@ -18,55 +23,73 @@ export const INITIAL_USERS: User[] = [
   { 
     id: 'u1', 
     username: 'adminanwar', 
+    password: 'adminanwar',
     role: UserRole.ADMIN, 
-    assignedStoreIds: ['1', '2'],
+    assignedStoreIds: ['s1', 's2', 's3', 's4'],
     isTwoFactorEnabled: false 
   },
   { 
     id: 'u2', 
     username: 'admincristian', 
+    password: 'admincristian',
     role: UserRole.ADMIN, 
-    assignedStoreIds: ['3'],
+    assignedStoreIds: ['s5'],
     isTwoFactorEnabled: false 
   }
 ];
 
+// HORARIOS ESPECÍFICOS POR SEDE (ACTUALIZADOS SEGÚN SOLICITUD)
+export const STORE_SCHEDULES: Record<string, string[]> = {
+  's1': ['09:00 a 19:00'], // Altotonga
+  's2': ['09:00 a 19:00'], // Naranjos
+  's3': [
+    '06:30 a 16:30', 
+    '07:00 a 17:00', 
+    '08:00 a 18:00', 
+    '09:00 a 19:00', 
+    '10:00 a 20:00', 
+    '11:00 a 21:00', 
+    '12:00 a 22:00'
+  ], // Cristal
+  's4': [
+    '07:30 a 17:30', 
+    '08:00 a 16:00', 
+    '10:00 a 20:00', 
+    '10:30 a 20:30'
+  ], // Casa Blanca
+  's5': ['07:30 a 17:30', '10:00 a 20:00', '12:00 a 22:00'], // Express
+};
+
+// DRIVERS REALES ASIGNADOS POR SEDE
+// Fix: Removed 'dailyWageFallback' and 'dailyGasFallback' as they are not defined in the Driver type.
 export const INITIAL_DRIVERS: Driver[] = [
-  { 
-    id: 'd1', fullName: 'Juan Perez', assignedStoreIds: ['1'], teamCode: 'W_SMARTGO_1', 
-    baseSchedule: '06:30 A 16:30', status: DriverStatus.AVAILABLE, isActive: true, 
-    curp: 'PERJ800101HDFLRS01', rfc: 'PERJ800101XX1', nss: '12345678901', 
-    qrCodeKey: 'SG-DRV-101', dailyWage: 350, dailyGas: 200,
-    storeFinances: {
-      '1': { dailyWage: 350, dailyGas: 200 }
-    }
-  },
-  { 
-    id: 'd2', fullName: 'Maria Garcia', assignedStoreIds: ['1'], teamCode: 'W_SMARTGO_2', 
-    baseSchedule: '07:00 A 17:00', status: DriverStatus.AVAILABLE, isActive: true, 
-    curp: 'GARM850505MDFXSS02', rfc: 'GARM850505YY2', nss: '98765432109', 
-    qrCodeKey: 'SG-DRV-102', dailyWage: 350, dailyGas: 200,
-    storeFinances: {
-      '1': { dailyWage: 350, dailyGas: 200 }
-    }
-  },
-  { 
-    id: 'd3', fullName: 'Pedro Lopez', assignedStoreIds: ['1', '2'], teamCode: 'W_SMARTGO_3', 
-    baseSchedule: '08:00 A 18:00', status: DriverStatus.AVAILABLE, isActive: true, 
-    curp: 'LOPP901212HDFLRS03', rfc: 'LOPP901212ZZ3', nss: '11223344556', 
-    qrCodeKey: 'SG-DRV-103', dailyWage: 400, dailyGas: 180,
-    storeFinances: {
-      '1': { dailyWage: 350, dailyGas: 200 },
-      '2': { dailyWage: 400, dailyGas: 180 }
-    }
-  },
-  { 
-    id: 'd4', fullName: 'Ana Martinez', assignedStoreIds: ['2'], teamCode: 'W_SMARTGO_4', 
-    baseSchedule: '06:30 A 16:30', status: DriverStatus.AVAILABLE, isActive: true, 
-    curp: 'MARA950303MDFXSS04', rfc: 'MARA950303WW4', nss: '66554433221', 
-    qrCodeKey: 'SG-DRV-104', dailyWage: 400, dailyGas: 180,
-    storeFinances: {
-      '2': { dailyWage: 400, dailyGas: 180 }
-    }
-  },
+  // Walmart Express
+  { id: 'd1', fullName: 'YUNNIOR DANNY COLORADO BRUNO', assignedStoreIds: ['s5', 's3'], teamCode: 'W_SMARTGO_1', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 200, storeFinances: {} },
+  { id: 'd2', fullName: 'ALEXANDRO BARON PEREZ', assignedStoreIds: ['s5', 's3'], teamCode: 'W_SMARTGO_2', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 200, storeFinances: {} },
+  
+  // Walmart Cristal
+  { id: 'd3', fullName: 'RAFAEL HERNANDEZ HERNZNDEZ', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_3', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd4', fullName: 'RENE MARTIN MORA MARTINEZ', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_4', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd5', fullName: 'JORGE SANCHEZ BUSTAMANTE', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_5', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd6', fullName: 'JOSE ANTONIO BARRADAS RODRIGUEZ', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_6', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd7', fullName: 'RICARDO ANTONIO DIAZ GARCIA', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_7', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd8', fullName: 'LEHABIM ALEXIS CRUZ CAMARENA', assignedStoreIds: ['s3', 's4'], teamCode: 'W_SMARTGO_8', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd9', fullName: 'GEOVANNI FIDEL AGUILAR OREA', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_9', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd10', fullName: 'MIGUEL ANGEL HUERTA LOPEZ', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_10', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+  { id: 'd11', fullName: 'PEDRO GERARDO CASTRO RONZO', assignedStoreIds: ['s3'], teamCode: 'W_SMARTGO_11', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 350, dailyGas: 200, storeFinances: {} },
+
+  // Bodega Aurrera Casa Blanca
+  { id: 'd12', fullName: 'JOSE RAMON PEREZ GALLEGOS', assignedStoreIds: ['s4'], teamCode: 'W_SMARTGO_12', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+  { id: 'd13', fullName: 'GUSTAVO ALFREDO MENDOZA AQUINO', assignedStoreIds: ['s4'], teamCode: 'W_SMARTGO_13', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+  { id: 'd14', fullName: 'OLGA ISABEL PARRA GONZALEZ', assignedStoreIds: ['s4'], teamCode: 'W_SMARTGO_14', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+  { id: 'd15', fullName: 'EDGAR RODRIGO VALENCIA LIMON', assignedStoreIds: ['s4'], teamCode: 'W_SMARTGO_15', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+  { id: 'd16', fullName: 'YESENIA ASCANIO REYES', assignedStoreIds: ['s4'], teamCode: 'W_SMARTGO_16', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+
+  // Bodega Aurrera Naranjos
+  { id: 'd17', fullName: 'ALEJANDRO FLORES GUTIERREZ', assignedStoreIds: ['s2'], teamCode: 'W_SMARTGO_17', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+  { id: 'd18', fullName: 'EVA CECILIA MEDINA AMARO', assignedStoreIds: ['s2'], teamCode: 'W_SMARTGO_18', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+
+  // Bodega Aurrera Altotonga
+  { id: 'd19', fullName: 'ALAN OMAR MARIN HERNANDEZ', assignedStoreIds: ['s1'], teamCode: 'W_SMARTGO_19', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
+  { id: 'd20', fullName: 'OSCAR VEGA SANCHEZ', assignedStoreIds: ['s1'], teamCode: 'W_SMARTGO_20', status: DriverStatus.AVAILABLE, isActive: true, dailyWage: 400, dailyGas: 180, storeFinances: {} },
 ];

@@ -17,7 +17,8 @@ export const Button: React.FC<{
   disabled?: boolean;
 }> = ({ onClick, children, variant = 'primary', className = "", type = 'button', disabled = false }) => {
   const variants = {
-    primary: 'bg-[var(--primary)] hover:opacity-90 text-white shadow-lg',
+    /* Usar var(--primary) para que cambie según la configuración del usuario */
+    primary: 'bg-[var(--primary)] hover:opacity-90 text-white shadow-lg shadow-[var(--primary-glow)]',
     danger: 'bg-rose-600 hover:bg-rose-700 text-white',
     success: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     warning: 'bg-amber-500 hover:bg-amber-600 text-white',
@@ -29,7 +30,7 @@ export const Button: React.FC<{
       type={type}
       onClick={onClick} 
       disabled={disabled}
-      className={`px-4 py-2.5 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
+      className={`px-4 py-2.5 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -73,11 +74,11 @@ export const Toast: React.FC<{
 
   return (
     <div className="fixed bottom-6 right-6 z-[150] animate-in slide-in-from-right-10 duration-300">
-      <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border border-white/10 backdrop-blur-xl ${styles[type]}`}>
-        <Icon size={20} />
-        <span className="text-sm font-black uppercase tracking-widest">{message}</span>
-        <button onClick={onClose} className="ml-2 hover:scale-110 transition-transform">
-          <X size={16} />
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl shadow-2xl border border-white/10 backdrop-blur-xl ${styles[type]}`}>
+        <Icon size={14} />
+        <span className="text-[9px] font-black uppercase tracking-widest">{message}</span>
+        <button onClick={onClose} className="ml-1 hover:scale-110 transition-transform">
+          <X size={12} />
         </button>
       </div>
     </div>

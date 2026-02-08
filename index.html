@@ -4,76 +4,79 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>DriveFlow | Sistema Logística</title>
+    <title>DriveFlow - Logística</title>
     
-    <link rel="manifest" href="./manifest.json" /> 
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#2563eb" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="DriveFlow" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2555/2555013.png" />
     
-    <link rel="icon" type="image/png" href="./icono.png" />
-    <link rel="apple-touch-icon" href="./icono.png" />
-   
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&family=Montserrat:wght@300..900&family=Outfit:wght@300..900&family=Roboto:wght@300..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..900&display=swap" rel="stylesheet">
     <style>
       :root {
         --primary: #2563eb;
         --primary-glow: rgba(37, 99, 235, 0.3);
-        --bg-app: #0d1117;
+        --bg-app: #111827;
         --surface: rgba(255, 255, 255, 0.04);
         --surface-border: rgba(255, 255, 255, 0.1);
         --text-main: #f8fafc;
         --text-muted: rgba(255, 255, 255, 0.45);
-        --input-bg: rgba(0, 0, 0, 0.2);
+        --input-bg: rgba(0, 0, 0, 0.3);
         --card-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
         --glass-blur: 40px;
         --subtle-bg: rgba(255, 255, 255, 0.06);
+        --font-main: 'Inter', sans-serif;
       }
 
-      body.light-mode {
-        --bg-app: #f8fafc;
-        --surface: rgba(255, 255, 255, 0.85);
-        --surface-border: rgba(0, 0, 0, 0.08);
+      html.light-mode {
+        --bg-app: #f1f5f9;
+        --surface: rgba(255, 255, 255, 0.7);
+        --surface-border: rgba(15, 23, 42, 0.08);
         --text-main: #0f172a;
         --text-muted: #64748b;
-        --input-bg: #ffffff;
-        --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
-        --glass-blur: 15px;
-        --subtle-bg: rgba(0, 0, 0, 0.03);
+        --input-bg: rgba(255, 255, 255, 0.8);
+        --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        --glass-blur: 25px;
+        --subtle-bg: rgba(15, 23, 42, 0.04);
       }
 
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: var(--font-main);
         margin: 0;
         background-color: var(--bg-app);
         color: var(--text-main);
-        transition: background-color 0.4s ease, color 0.4s ease;
         overscroll-behavior-y: none;
+        transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s ease;
       }
       
       .theme-text-main { color: var(--text-main); }
       .theme-text-muted { color: var(--text-muted); }
+      .theme-bg-app { background-color: var(--bg-app); }
       .theme-bg-surface { background-color: var(--surface); }
       .theme-bg-subtle { background-color: var(--subtle-bg); }
       .theme-border { border-color: var(--surface-border); }
 
       .liquid-glass {
         background: var(--surface);
-        backdrop-filter: blur(var(--glass-blur)) saturate(160%);
-        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+        backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
         border: 1px solid var(--surface-border);
         box-shadow: var(--card-shadow);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       }
 
       .glass-input {
         background: var(--input-bg) !important;
         border: 1px solid var(--surface-border) !important;
         color: var(--text-main) !important;
+        transition: all 0.3s ease;
       }
 
       .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -81,47 +84,34 @@
         background: var(--surface-border);
         border-radius: 10px;
       }
-
-      /* Efecto Lámpara de Lava */
-      .lava-container {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        z-index: -1;
-        top: 0;
-        left: 0;
-      }
-
-      .lava-blob {
-        position: absolute;
-        border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.4;
-        animation: lava-float 20s infinite alternate ease-in-out;
-      }
-
-      @keyframes lava-float {
-        0% { transform: translate(0, 0) scale(1); }
-        33% { transform: translate(100px, 200px) scale(1.2); }
-        66% { transform: translate(-100px, 350px) scale(0.8); }
-        100% { transform: translate(50px, 500px) scale(1.1); }
-      }
     </style>
-    <script type="module" src="./index.tsx"></script>
+    <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "qrcode": "https://esm.sh/qrcode@^1.5.3",
+    "otpauth": "https://esm.sh/otpauth@^9.3.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.39.0",
+    "jszip": "https://esm.sh/jszip@^3.10.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.39.0"
+  }
+}
+</script>
   </head>
   <body>
     <div id="root"></div>
     <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      // El punto inicial ./ es clave para rutas en la raíz
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('Service Worker Activo', reg.scope))
-        .catch(err => console.error('Error al registrar SW', err));
-    });
-  }
+      // Registro del Service Worker para soporte Offline
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('DriveFlow Service Worker registrado!', reg))
+            .catch(err => console.log('Error al registrar Service Worker:', err));
+        });
+      }
     </script>
-    
   </body>
 </html>
