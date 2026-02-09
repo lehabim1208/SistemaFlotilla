@@ -1,23 +1,38 @@
 
-const CACHE_NAME = 'driveflow-v4-core';
+const CACHE_NAME = 'driveflow-v5-permanent';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/metadata.json'
+  '/metadata.json',
+  '/index.tsx',
+  '/App.tsx',
+  '/types.ts',
+  '/constants.tsx',
+  '/components/UI.tsx',
+  '/components/Badge.tsx',
+  '/pages/Dashboard.tsx',
+  '/pages/DriverManagement.tsx',
+  '/pages/RoleGenerator.tsx',
+  '/pages/Superadmin.tsx',
+  '/pages/History.tsx',
+  '/pages/Settings.tsx',
+  '/pages/Scanner.tsx',
+  '/pages/Download.tsx'
 ];
 
-// Instalación: Cacheamos el núcleo de la App
+// Instalación: Cacheamos TODO el código fuente
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log('[SW] Creando búnker de archivos...');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
   self.skipWaiting();
 });
 
-// Activación: Limpieza de versiones antiguas
+// Activación
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -29,10 +44,12 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Intercepción de peticiones: Soporte Offline Total
+// Intercepción Inteligente
 self.addEventListener('fetch', (event) => {
-  // No cachear peticiones a Supabase para evitar datos fantasmas
-  if (event.request.url.includes('supabase.co')) return;
+  const url = new URL(event.request.url);
+
+  // No cachear llamadas directas a la base de datos Supabase
+  if (url.hostname.includes('supabase.co')) return;
 
   // Manejo de navegación (Recargas de página)
   if (event.request.mode === 'navigate') {
@@ -42,14 +59,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Estrategia: Cache First para assets y librerías externas
+  // Estrategia: Cache First con Network Update
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
+      if (cachedResponse) {
+        // Devolvemos el cache pero intentamos actualizarlo en segundo plano para la próxima vez
+        fetch(event.request).then(response => {
+          if (response.status === 200) {
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, response));
+          }
+        }).catch(() => {}); 
+        return cachedResponse;
+      }
 
       return fetch(event.request).then((response) => {
-        // Cachear dinámicamente librerías de esm.sh y fuentes
-        if (response.status === 200 && (event.request.url.includes('esm.sh') || event.request.url.includes('fonts.googleapis.com'))) {
+        // Guardar dinámicamente cualquier script o asset nuevo (como librerías de esm.sh)
+        if (response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -57,7 +82,10 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       }).catch(() => {
-        // Fallback silencioso si no hay red ni cache
+        // Fallback para imágenes si no hay red ni cache
+        if (event.request.destination === 'image') {
+          return new Response('<svg>...</svg>', { headers: { 'Content-Type': 'image/svg+xml' } });
+        }
       });
     })
   );
