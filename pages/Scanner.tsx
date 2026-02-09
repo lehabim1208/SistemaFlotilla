@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, QrCode, ShieldCheck, XCircle, Loader2, Image as ImageIcon, ChevronDown, ChevronUp, MapPin, User as UserIcon, Wallet, FileText, BadgeCheck, ShieldAlert } from 'lucide-react';
 import { GlassCard, Button, Modal } from '../components/UI';
-import { Driver, Store } from '../types';
+import { Driver, Store, DriverStatus } from '../types';
 
 interface ScannerProps {
   drivers: Driver[];
@@ -123,7 +123,7 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
             {processing ? <Loader2 className="text-blue-400 w-12 h-12 animate-spin" /> : <QrCode className="text-blue-400 w-12 h-12" />}
           </div>
           <div className="space-y-3">
-            <h3 className="text-xl font-black theme-text-main uppercase tracking-tight">{processing ? 'Verificando Expediente...' : 'Validar Gafete Institucional'}</h3>
+            <h3 className="text-xl font-black theme-text-main uppercase tracking-tight">{processing ? 'Verificando Expediente...' : 'Validar gafete de operador'}</h3>
             <p className="theme-text-muted text-[10px] max-w-xs mx-auto font-black uppercase tracking-widest leading-relaxed">Posicione el código QR del gafete frente a la cámara o suba una foto nítida.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
@@ -156,7 +156,10 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
                 <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-blue-600/10 text-blue-500 border border-blue-500/20 rounded-xl tracking-widest">{result.teamCode}</span>
                 <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl border tracking-widest ${result.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
                    {result.isActive ? <BadgeCheck size={12} className="inline mr-1" /> : <ShieldAlert size={12} className="inline mr-1" />}
-                   {result.isActive ? 'GAFETE ACTIVO' : 'SISTEMA BLOQUEADO'}
+                   {result.isActive ? 'GAFETE ACTIVO' : 'GAFETE VENCIDO'}
+                </span>
+                <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-xl border tracking-widest ${result.status === DriverStatus.AVAILABLE ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>
+                   {result.status}
                 </span>
               </div>
             </div>
@@ -228,7 +231,7 @@ export const Scanner: React.FC<ScannerProps> = ({ drivers = [], stores = [] }) =
                )}
             </div>
             
-            <Button onClick={() => { setResult(null); setShowMore(false); }} className="w-full py-6 font-black uppercase text-[11px] bg-blue-600 shadow-2xl shadow-blue-900/50 tracking-[0.2em] border-2 border-blue-400/20 active:scale-95 transition-all">Finalizar Consulta</Button>
+            <Button onClick={() => { setResult(null); setShowMore(false); }} className="w-full py-4 font-black uppercase text-[11px] bg-blue-600 shadow-2xl shadow-blue-900/50 tracking-[0.2em] border-2 border-blue-400/20 active:scale-95 transition-all">Finalizar Consulta</Button>
           </div>
         )}
       </Modal>

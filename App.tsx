@@ -15,7 +15,6 @@ import { Superadmin } from './pages/Superadmin';
 import { History } from './pages/History';
 import { Settings } from './pages/Settings';
 import { Scanner } from './pages/Scanner';
-import { DownloadPage } from './pages/Download';
 
 // --- CONFIGURACIÓN SUPABASE ---
 const supabaseUrl = 'https://egahherinysusrsesaug.supabase.co';
@@ -41,23 +40,10 @@ const TransitionPreloader = ({ type }: { type: 'login' | 'logout' }) => (
 );
 
 export const App: React.FC = () => {
-  const defaultSettings: UserSettings = {
-    themeColor: 'indigo',
-    darkMode: true,
-    timezone: 'auto',
-    autoDateTime: true,
-    fontFamily: 'Inter'
-  };
-
-  // --- ESTADO INICIAL DESDE LOCALSTORAGE (UNIFICADO) ---
+  // --- ESTADO INICIAL ---
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('df_session');
     return saved ? JSON.parse(saved) : null;
-  });
-
-  const [globalSettings, setGlobalSettings] = useState<UserSettings>(() => {
-    const savedGlobal = localStorage.getItem('df_global_config');
-    return savedGlobal ? JSON.parse(savedGlobal) : defaultSettings;
   });
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -97,7 +83,7 @@ export const App: React.FC = () => {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // --- PERSISTENCIA AUTOMÁTICA ---
+  // --- PERSISTENCIA LOCAL ---
   useEffect(() => {
     localStorage.setItem('df_users', JSON.stringify(users));
     localStorage.setItem('df_stores', JSON.stringify(stores));
@@ -105,7 +91,20 @@ export const App: React.FC = () => {
     localStorage.setItem('df_history', JSON.stringify(history));
     localStorage.setItem('df_sync_queue', JSON.stringify(syncQueue));
     localStorage.setItem('df_active_tab', activeTab);
-  }, [users, stores, drivers, history, syncQueue, activeTab]);
+    if (currentUser) {
+      localStorage.setItem('df_session', JSON.stringify(currentUser));
+    }
+  }, [users, stores, drivers, history, syncQueue, activeTab, currentUser]);
+
+  // --- GESTIÓN DE TEMAS (Oscuro/Claro) ---
+  useEffect(() => {
+    const isDark = currentUser?.settings?.darkMode ?? true;
+    if (isDark) {
+      document.documentElement.classList.remove('light-mode');
+    } else {
+      document.documentElement.classList.add('light-mode');
+    }
+  }, [currentUser?.settings?.darkMode]);
 
   // Monitor de Conexión
   useEffect(() => {
@@ -134,21 +133,23 @@ export const App: React.FC = () => {
 
     for (const action of queue) {
       try {
+        let error = null;
         switch (action.type) {
-          case 'UPDATE_USER': await supabase.from('app_users').update(action.payload).eq('id', action.payload.id); break;
-          case 'ADD_DRIVER': await supabase.from('drivers').insert(action.payload); break;
-          case 'UPDATE_DRIVER': await supabase.from('drivers').update(action.payload).eq('id', action.payload.id); break;
-          case 'DELETE_DRIVER': await supabase.from('drivers').delete().eq('id', action.payload); break;
-          case 'PUBLISH_ROLE': await supabase.from('daily_roles').insert(action.payload); break;
-          case 'UPDATE_ROLE': await supabase.from('daily_roles').update(action.payload).eq('id', action.payload.id); break;
-          case 'DELETE_ROLE': await supabase.from('daily_roles').delete().eq('id', action.payload); break;
-          case 'CLEAR_ROLES': await supabase.from('daily_roles').delete().neq('id', '0'); break;
-          case 'ADD_STORE': await supabase.from('stores').insert(action.payload); break;
-          case 'UPDATE_STORE': await supabase.from('stores').update(action.payload).eq('id', action.payload.id); break;
-          case 'DELETE_STORE': await supabase.from('stores').delete().eq('id', action.payload); break;
+          case 'UPDATE_USER': ({ error } = await supabase.from('app_users').update(action.payload).eq('id', action.payload.id)); break;
+          case 'ADD_DRIVER': ({ error } = await supabase.from('drivers').insert(action.payload)); break;
+          case 'UPDATE_DRIVER': ({ error } = await supabase.from('drivers').update(action.payload).eq('id', action.payload.id)); break;
+          case 'DELETE_DRIVER': ({ error } = await supabase.from('drivers').delete().eq('id', action.payload)); break;
+          case 'PUBLISH_ROLE': ({ error } = await supabase.from('daily_roles').insert(action.payload)); break;
+          case 'UPDATE_ROLE': ({ error } = await supabase.from('daily_roles').update(action.payload).eq('id', action.payload.id)); break;
+          case 'DELETE_ROLE': ({ error } = await supabase.from('daily_roles').delete().eq('id', action.payload)); break;
+          case 'CLEAR_ROLES': ({ error } = await supabase.from('daily_roles').delete().neq('id', '0')); break;
+          case 'ADD_STORE': ({ error } = await supabase.from('stores').insert(action.payload)); break;
+          case 'UPDATE_STORE': ({ error } = await supabase.from('stores').update(action.payload).eq('id', action.payload.id)); break;
+          case 'DELETE_STORE': ({ error } = await supabase.from('stores').delete().eq('id', action.payload)); break;
         }
+        if (error) throw error;
       } catch (err) {
-        console.error("Fallo al sincronizar acción:", action.type, err);
+        console.error("Error sincronizando acción:", action.type, err);
         failedActions.push(action);
       }
     }
@@ -156,7 +157,7 @@ export const App: React.FC = () => {
     setSyncQueue(failedActions);
     setIsSyncing(false);
     if (failedActions.length === 0) {
-      fetchAllDataSilent(); // Solo descargamos si la cola está vacía
+      fetchAllDataSilent();
     }
   };
 
@@ -169,7 +170,8 @@ export const App: React.FC = () => {
   };
 
   const fetchAllDataSilent = async () => {
-    if (!navigator.onLine || syncQueue.length > 0) return; // PROHIBIDO descargar si hay cola pendiente
+    if (!navigator.onLine || syncQueue.length > 0) return; 
+    
     setIsSyncing(true);
     try {
       const [uRes, sRes, dRes, hRes] = await Promise.all([
@@ -178,12 +180,22 @@ export const App: React.FC = () => {
         supabase.from('drivers').select('*'),
         supabase.from('daily_roles').select('*').order('date', { ascending: false })
       ]);
+      
       if (uRes.data) setUsers(uRes.data);
       if (sRes.data) setStores(sRes.data);
-      if (dRes.data) setDrivers(dRes.data);
+      
+      const pendingDeletions = syncQueue
+        .filter(a => a.type === 'DELETE_DRIVER')
+        .map(a => a.payload);
+        
+      if (dRes.data) {
+        const cloudDrivers = dRes.data;
+        setDrivers(cloudDrivers.filter((d: Driver) => !pendingDeletions.includes(d.id)));
+      }
+      
       if (hRes.data) setHistory(hRes.data);
     } catch (error) {
-      console.error("DriveFlow Cloud Error:", error);
+      console.error("Error al descargar datos de DriveFlow Cloud:", error);
     } finally {
       setIsSyncing(false);
     }
@@ -191,18 +203,18 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     fetchAllDataSilent();
-    const interval = setInterval(fetchAllDataSilent, 300000);
+    const interval = setInterval(fetchAllDataSilent, 300000); 
     return () => clearInterval(interval);
   }, []);
 
-  // --- APLICACIÓN DE ESTILOS ---
-  useEffect(() => {
-    if (globalSettings.darkMode) document.documentElement.classList.remove('light-mode');
-    else document.documentElement.classList.add('light-mode');
-  }, [globalSettings]);
-
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Forzar el ocultamiento del teclado desenfocando el input activo
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     if (loginStep === 'credentials') {
       const user = users.find(u => u.username === loginForm.username);
       if (user && user.isDeleted) { setLoginError('Cuenta deshabilitada.'); return; }
@@ -212,7 +224,9 @@ export const App: React.FC = () => {
         } else {
           setTransitionType('login'); setIsTransitioning(true);
           setTimeout(() => {
-            setCurrentUser(user); localStorage.setItem('df_session', JSON.stringify(user));
+            setCurrentUser(user);
+            // RESET VISIBILIDAD CONTRASEÑA PARA EL PRÓXIMO LOGIN
+            setShowLoginPassword(false);
             setLoginForm({ username: '', password: '', otp: '' }); setLoginError(''); setIsTransitioning(false);
           }, 1500);
         }
@@ -223,7 +237,9 @@ export const App: React.FC = () => {
       if (totp.validate({ token: loginForm.otp }) !== null) {
         setTransitionType('login'); setIsTransitioning(true);
         setTimeout(() => {
-          setCurrentUser(pendingUser); localStorage.setItem('df_session', JSON.stringify(pendingUser));
+          setCurrentUser(pendingUser);
+          // RESET VISIBILIDAD CONTRASEÑA PARA EL PRÓXIMO LOGIN
+          setShowLoginPassword(false);
           setLoginForm({ username: '', password: '', otp: '' }); setLoginStep('credentials'); setLoginError(''); setIsTransitioning(false);
         }, 1500);
       } else { setLoginError('Token inválido'); }
@@ -232,6 +248,8 @@ export const App: React.FC = () => {
 
   const handleLogout = () => {
     setTransitionType('logout'); setIsTransitioning(true);
+    // Asegurar que el sidebar esté cerrado para el próximo inicio
+    setIsSidebarOpen(false);
     setTimeout(() => {
       setCurrentUser(null); localStorage.removeItem('df_session'); setActiveTab('dashboard');
       setLoginForm({ username: '', password: '', otp: '' }); setLoginStep('credentials'); setIsTransitioning(false);
@@ -241,7 +259,7 @@ export const App: React.FC = () => {
   // --- HANDLERS SINCRONIZADOS ---
   const syncUpdateUser = async (u: User) => {
     setUsers(prev => prev.map(item => item.id === u.id ? u : item));
-    if (currentUser?.id === u.id) { setCurrentUser(u); localStorage.setItem('df_session', JSON.stringify(u)); }
+    if (currentUser?.id === u.id) { setCurrentUser(u); }
     if (isOnline && syncQueue.length === 0) await supabase.from('app_users').update(u).eq('id', u.id);
     else enqueueAction('UPDATE_USER', u);
   };
@@ -250,20 +268,32 @@ export const App: React.FC = () => {
     const newId = d.id || `drv_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const driverToSave = { ...d, id: newId } as Driver;
     setDrivers(prev => [...prev, driverToSave]);
-    if (isOnline && syncQueue.length === 0) await supabase.from('drivers').insert(driverToSave);
-    else enqueueAction('ADD_DRIVER', driverToSave);
+    if (isOnline && syncQueue.length === 0) {
+      const { error } = await supabase.from('drivers').insert(driverToSave);
+      if (error) enqueueAction('ADD_DRIVER', driverToSave);
+    } else {
+      enqueueAction('ADD_DRIVER', driverToSave);
+    }
   };
 
   const syncUpdateDriver = async (d: Driver) => {
     setDrivers(prev => prev.map(item => item.id === d.id ? d : item));
-    if (isOnline && syncQueue.length === 0) await supabase.from('drivers').update(d).eq('id', d.id);
-    else enqueueAction('UPDATE_DRIVER', d);
+    if (isOnline && syncQueue.length === 0) {
+      const { error } = await supabase.from('drivers').update(d).eq('id', d.id);
+      if (error) enqueueAction('UPDATE_DRIVER', d);
+    } else {
+      enqueueAction('UPDATE_DRIVER', d);
+    }
   };
 
   const syncDeleteDriver = async (id: string) => {
     setDrivers(prev => prev.filter(item => item.id !== id));
-    if (isOnline && syncQueue.length === 0) await supabase.from('drivers').delete().eq('id', id);
-    else enqueueAction('DELETE_DRIVER', id);
+    if (isOnline && syncQueue.length === 0) {
+      const { error } = await supabase.from('drivers').delete().eq('id', id);
+      if (error) enqueueAction('DELETE_DRIVER', id);
+    } else {
+      enqueueAction('DELETE_DRIVER', id);
+    }
   };
 
   const syncPublishRole = async (r: DailyRole) => {
@@ -317,12 +347,27 @@ export const App: React.FC = () => {
                 <>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest px-1">Usuario</label>
-                    <input className="w-full glass-input rounded-2xl px-5 py-4 outline-none font-bold text-sm" placeholder="Ej: admin123" value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value.toLowerCase()})} />
+                    <input 
+                      className="w-full glass-input rounded-2xl px-5 py-4 outline-none font-bold text-sm" 
+                      placeholder="Ej: admin123" 
+                      value={loginForm.username} 
+                      onChange={e => setLoginForm({...loginForm, username: e.target.value.toLowerCase()})}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black theme-text-muted uppercase tracking-widest px-1">Contraseña</label>
                     <div className="relative">
-                      <input type={showLoginPassword ? "text" : "password"} className="w-full glass-input rounded-2xl px-5 py-4 outline-none font-bold pr-12 text-sm" placeholder="***********" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} />
+                      <input 
+                        type={showLoginPassword ? "text" : "password"} 
+                        className="w-full glass-input rounded-2xl px-5 py-4 outline-none font-bold pr-12 text-sm" 
+                        placeholder="***********" 
+                        value={loginForm.password} 
+                        onChange={e => setLoginForm({...loginForm, password: e.target.value})}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                      />
                       <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 theme-text-muted">{showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                     </div>
                   </div>
@@ -363,7 +408,6 @@ export const App: React.FC = () => {
                 { id: 'drivers', label: 'Operadores', icon: Truck, role: 'privileged' },
                 { id: 'admin', label: 'Gestión Central', icon: StoreIcon, role: UserRole.SUPERADMIN },
                 { id: 'history', label: 'Historial', icon: HistoryIcon, role: 'all' },
-                { id: 'download', label: 'Backup Sistema', icon: DownloadIcon, role: UserRole.SUPERADMIN },
                 { id: 'settings', label: 'Configuración', icon: SettingsIcon, role: 'all' },
               ].filter(item => {
                 if (item.role === 'all') return true;
@@ -378,7 +422,10 @@ export const App: React.FC = () => {
             </nav>
             <div className="mt-auto pt-6 border-t theme-border">
               <div className="mb-6 px-5 py-5 theme-bg-subtle rounded-2xl border theme-border">
-                <p className="theme-text-main font-black truncate text-sm uppercase">{currentUser.username}</p>
+                <div className="flex items-center justify-between">
+                  <p className="theme-text-main font-black truncate text-sm uppercase flex-1">{currentUser.username}</p>
+                  <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)] ml-2 flex-shrink-0"></div>
+                </div>
                 <span className="text-[8px] theme-text-muted px-2 py-0.5 rounded-md font-black uppercase border theme-border mt-2 inline-block">{currentUser.role}</span>
               </div>
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-6 py-4 rounded-xl text-rose-500 font-black uppercase text-[10px]"><LogOut size={18} /> Salir</button>
@@ -399,11 +446,10 @@ export const App: React.FC = () => {
               {activeTab === 'drivers' && <DriverManagement currentUser={currentUser} drivers={drivers} stores={stores} history={history} onAdd={syncAddDriver} onUpdate={syncUpdateDriver} onDelete={syncDeleteDriver} />}
               {activeTab === 'history' && <History history={history} currentUser={currentUser} onUpdateRole={syncUpdateRole} onDeleteRole={syncDeleteRole} />}
               {activeTab === 'settings' && <Settings currentUser={currentUser} onUpdateUser={syncUpdateUser} onAccountDeleted={handleLogout} />}
-              {activeTab === 'download' && <DownloadPage />}
               {activeTab === 'admin' && <Superadmin users={users} stores={stores} drivers={drivers} history={history} onAddStore={syncAddStore} onUpdateStore={syncUpdateStore} onDeleteStore={syncDeleteStore} onAddAdmin={(u) => { const newU = { ...u, id: `u_${Date.now()}` } as User; setUsers(prev => [...prev, newU]); enqueueAction('UPDATE_USER', newU); }} onUpdateAdmin={syncUpdateUser} onDeleteAdmin={(id) => { setUsers(prev => prev.filter(u => u.id !== id)); enqueueAction('UPDATE_USER', { id, _deleted: true }); }} onClearHistory={() => { setHistory([]); enqueueAction('CLEAR_ROLES', null); }} />}
             </div>
             <footer className="mt-12 py-6 border-t theme-border text-center">
-              <p className="opacity-40 text-[7px] font-black theme-text-muted uppercase tracking-[0.3em]">DriveFlow • Sincronización Inteligente v4.0</p>
+              <p className="opacity-40 text-[7px] font-black theme-text-muted uppercase tracking-[0.3em]">DriveFlow • Gestión de Personal v4.1</p>
             </footer>
           </main>
         </>

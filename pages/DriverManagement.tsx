@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Truck, Plus, Info, Edit2, Trash2, User as UserIcon, Search, Filter, ChevronLeft, ChevronRight, Store as StoreIcon, DollarSign, Fuel, QrCode, Camera, Eye, Image as ImageIcon, TrendingUp, Calendar as CalendarIcon, Wallet, CheckCircle2, XCircle, AlertCircle, Clock, ChevronDown, ChevronUp, MapPin, Activity, FileText, ShieldCheck, BadgeCheck, UserMinus, Maximize2 } from 'lucide-react';
+import { Truck, Plus, Info, Edit2, Trash2, User as UserIcon, Search, Filter, ChevronLeft, ChevronRight, Store as StoreIcon, DollarSign, Fuel, QrCode, Camera, Eye, Image as ImageIcon, TrendingUp, Calendar as CalendarIcon, Wallet, CheckCircle2, XCircle, AlertCircle, Clock, ChevronDown, ChevronUp, MapPin, Activity, FileText, ShieldCheck, BadgeCheck, UserMinus, Maximize2, Loader2 } from 'lucide-react';
 import { GlassCard, Button, Modal, Toast } from '../components/UI';
 import { Driver, Store, DriverStatus, User, UserRole, DailyRole, AttendanceStatus, DriverStoreFinance } from '../types';
 import { Badge } from '../components/Badge';
@@ -16,6 +16,7 @@ interface Props {
 }
 
 const ITEMS_PER_PAGE = 10;
+const IMGBB_API_KEY = '605cbcef44fb63ad7761c9eadd84c06e';
 
 const STORE_FINANCE_DEFAULTS: Record<string, DriverStoreFinance> = {
   's1': { dailyWage: 400, dailyGas: 180 }, // Altotonga
@@ -23,6 +24,51 @@ const STORE_FINANCE_DEFAULTS: Record<string, DriverStoreFinance> = {
   's3': { dailyWage: 350, dailyGas: 230 }, // Cristal
   's4': { dailyWage: 400, dailyGas: 180 }, // Casa Blanca
   's5': { dailyWage: 400, dailyGas: 200 }, // Express
+};
+
+// Función optimizada para comprimir imágenes rápidamente
+const compressImage = (file: File): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 800; // Reducción para mayor velocidad
+      const MAX_HEIGHT = 800;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Error al comprimir imagen'));
+        },
+        'image/jpeg',
+        0.5 // Calidad balanceada para subida ultrarrápida
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Error al cargar la imagen'));
+    };
+    img.src = url;
+  });
 };
 
 export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], stores = [], history = [], onAdd, onUpdate, onDelete }) => {
@@ -37,6 +83,7 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStore, setFilterStore] = useState('all');
@@ -55,6 +102,11 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
   });
 
   const isSuper = currentUser?.role === UserRole.SUPERADMIN;
+
+  const accessibleStores = useMemo(() => {
+    if (isSuper) return stores;
+    return stores.filter(s => (currentUser.assignedStoreIds || []).includes(s.id));
+  }, [stores, isSuper, currentUser]);
 
   const calculateCofeprisStatus = (dateStr: string) => {
     if (!dateStr) return 'No registrado';
@@ -92,17 +144,13 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
     return `${parts[2]} / ${parts[1]} / ${parts[0]}`;
   };
 
-  const accessibleStores = useMemo(() => {
-    if (isSuper) return stores;
-    return stores.filter(s => (currentUser.assignedStoreIds || []).includes(s.id));
-  }, [stores, isSuper, currentUser]);
-
-  const getStoreFinance = (driver: Driver | Partial<Driver>, storeId: string) => {
-    const saved = driver.storeFinances?.[storeId];
-    if (saved && (Number(saved.dailyWage) > 0 || Number(saved.dailyGas) > 0)) return saved;
+  const getStoreFinance = (driver: Driver | Partial<Driver> | null | undefined, storeId: string) => {
+    if (!driver || !driver.storeFinances) return { dailyWage: 0, dailyGas: 0 };
+    const saved = driver.storeFinances[storeId];
+    if (saved !== undefined) return saved;
     const base = STORE_FINANCE_DEFAULTS[storeId];
     if (base) return base;
-    return { dailyWage: driver.dailyWage || 350, dailyGas: driver.dailyGas || 180 };
+    return { dailyWage: (driver as any).dailyWage || 0, dailyGas: (driver as any).dailyGas || 0 };
   };
 
   const calculateFinancialHistory = (driverId: string) => {
@@ -153,58 +201,122 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
   const paginatedDrivers = useMemo(() => filteredDrivers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE), [filteredDrivers, currentPage]);
 
   const toggleStoreSelection = (storeId: string, target: 'form' | 'edit') => {
-    const currentIds = target === 'form' ? (form.assignedStoreIds || []) : (editing?.assignedStoreIds || []);
-    const isAddingStore = !currentIds.includes(storeId);
-    const newIds = isAddingStore ? [...currentIds, storeId] : currentIds.filter(id => id !== storeId);
-    const defaults = STORE_FINANCE_DEFAULTS[storeId] || { dailyWage: 350, dailyGas: 180 };
+    const updater = (prev: any) => {
+      const currentIds = prev.assignedStoreIds || [];
+      const isAddingStore = !currentIds.includes(storeId);
+      const newIds = isAddingStore ? [...currentIds, storeId] : currentIds.filter((id: string) => id !== storeId);
+      const defaults = STORE_FINANCE_DEFAULTS[storeId] || { dailyWage: 350, dailyGas: 180 };
+      
+      const newFinances = { ...(prev.storeFinances || {}) };
+      if (isAddingStore && !newFinances[storeId]) {
+        newFinances[storeId] = { ...defaults };
+      }
+      
+      return { ...prev, assignedStoreIds: newIds, storeFinances: newFinances };
+    };
 
     if (target === 'form') {
-      const newFinances = { ...(form.storeFinances || {}) };
-      if (isAddingStore && !newFinances[storeId]) newFinances[storeId] = { ...defaults };
-      setForm({ ...form, assignedStoreIds: newIds, storeFinances: newFinances });
-    } else if (editing) {
-      const newFinances = { ...(editing.storeFinances || {}) };
-      if (isAddingStore && !newFinances[storeId]) newFinances[storeId] = { ...defaults };
-      setEditing({ ...editing, assignedStoreIds: newIds, storeFinances: newFinances });
+      setForm(updater);
+    } else {
+      setEditing(prev => prev ? updater(prev) : null);
     }
   };
 
   const handleUpdateFinance = (storeId: string, field: 'dailyWage' | 'dailyGas', valueStr: string, target: 'form' | 'edit') => {
     const value = valueStr === '' ? 0 : Number(valueStr);
+    const updater = (prev: any) => {
+      const newFinances = { ...(prev.storeFinances || {}) };
+      newFinances[storeId] = { 
+        ...(newFinances[storeId] || STORE_FINANCE_DEFAULTS[storeId] || { dailyWage: 350, dailyGas: 180 }), 
+        [field]: value 
+      };
+      return { ...prev, storeFinances: newFinances };
+    };
+
     if (target === 'form') {
-      const newFinances = { ...(form.storeFinances || {}) };
-      newFinances[storeId] = { ...(newFinances[storeId] || STORE_FINANCE_DEFAULTS[storeId] || { dailyWage: 350, dailyGas: 180 }), [field]: value };
-      setForm({ ...form, storeFinances: newFinances });
-    } else if (editing) {
-      const newFinances = { ...(editing.storeFinances || {}) };
-      newFinances[storeId] = { ...(newFinances[storeId] || STORE_FINANCE_DEFAULTS[storeId] || { dailyWage: 350, dailyGas: 180 }), [field]: value };
-      setEditing({ ...editing, storeFinances: newFinances });
+      setForm(updater);
+    } else {
+      setEditing(prev => prev ? updater(prev) : null);
     }
   };
 
-  const handleFileAction = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+  const handleFileAction = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        if (isEdit && editing) setEditing({ ...editing, photoUrl: base64 });
-        else setForm({ ...form, photoUrl: base64 });
-        setPhotoMenu(null);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    setPhotoMenu(null);
+    setToast({ message: 'Procesando fotografía...', type: 'info' });
+
+    try {
+      // Compresión rápida mediante ObjectURL y canvas
+      const compressedBlob = await compressImage(file);
+      
+      const formData = new FormData();
+      formData.append('image', compressedBlob, 'photo.jpg');
+
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const imageUrl = result.data.url;
+        // CORRECCIÓN: Usar actualización funcional para evitar borrar otros campos del formulario
+        if (isEdit) {
+          setEditing(prev => prev ? ({ ...prev, photoUrl: imageUrl }) : null);
+        } else {
+          setForm(prev => ({ ...prev, photoUrl: imageUrl }));
+        }
+        setToast({ message: 'Fotografía actualizada', type: 'success' });
+      } else {
+        throw new Error('Error al subir a ImgBB');
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({ message: 'Error al procesar la imagen.', type: 'error' });
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
   const removePhoto = () => {
-    if (editing) setEditing({ ...editing, photoUrl: '' });
-    else setForm({ ...form, photoUrl: '' });
+    if (editing) setEditing(prev => prev ? ({ ...prev, photoUrl: '' }) : null);
+    else setForm(prev => ({ ...prev, photoUrl: '' }));
     setPhotoMenu(null);
     setToast({ message: 'Fotografía removida', type: 'info' });
   };
 
+  const validateDriverForm = (data: Partial<Driver>) => {
+    if (!data.fullName?.trim()) return "El nombre completo es requerido.";
+    if (!data.teamCode?.trim()) return "El ID de flota es requerido.";
+    
+    const isDuplicate = drivers.some(d => 
+      d.teamCode.toUpperCase() === data.teamCode?.toUpperCase() && d.id !== data.id
+    );
+    if (isDuplicate) return `El ID de Flota "${data.teamCode}" ya está asignado a otro operador.`;
+
+    if (!data.curp?.trim()) return "La CURP es obligatoria.";
+    if (!data.rfc?.trim()) return "El RFC es obligatorio.";
+    if (!data.nss?.trim()) return "El Número de Seguro Social es obligatorio.";
+    if (!data.cofepris_expiration) return "Debe seleccionar el vencimiento de Cofepris.";
+    if (!data.assignedStoreIds || data.assignedStoreIds.length === 0) return "Debe seleccionar al menos una sede.";
+    return null;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const dataToValidate = isAdding ? form : editing;
+    if (!dataToValidate) return;
+
+    const errorMsg = validateDriverForm(dataToValidate);
+    if (errorMsg) {
+      setToast({ message: errorMsg, type: 'error' });
+      return;
+    }
+
     if (isAdding) {
       const payload = {
         ...form,
@@ -316,7 +428,7 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
                     </td>
                     <td className="p-5">
                       <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${d.isActive ? 'text-emerald-500 border-emerald-500/20' : 'text-rose-500 border-rose-500/20'}`}>
-                        {d.isActive ? 'Vigente' : 'Inactivo'}
+                        {d.isActive ? 'Vigente' : 'Vencido'}
                       </span>
                     </td>
                     <td className="p-5 text-right">
@@ -370,7 +482,7 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
                 <h4 className="text-xl font-black theme-text-main uppercase leading-tight px-1 mb-2">{viewing.fullName}</h4>
                 <div className="flex flex-wrap justify-center gap-2 mt-1">
                   <span className="text-[9px] font-black uppercase px-3 py-1 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-lg">{viewing.teamCode}</span>
-                  <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border ${viewing.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>{viewing.isActive ? 'Gafete: Vigente' : 'Gafete: Bloqueado'}</span>
+                  <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-lg border ${viewing.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>{viewing.isActive ? 'Gafete: Vigente' : 'Gafete: Vencido'}</span>
                 </div>
               </div>
 
@@ -423,7 +535,7 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
                     </div>
                     <div className="p-3 bg-amber-500/5 rounded-2xl border border-amber-500/10 text-center">
                        <p className="text-[7px] font-black theme-text-muted uppercase mb-1">Pend. Gasolina</p>
-                       <p className="text-xl font-black text-emerald-500 leading-none">${stats.pendingGas}</p>
+                       <p className="text-xl font-black text-amber-500 leading-none">${stats.pendingGas}</p>
                     </div>
                  </div>
                  <Button onClick={() => setShowingPaymentDetails(viewing)} variant="outline" className="w-full py-4 text-[9px] font-black uppercase border-blue-500/20 text-blue-500 bg-blue-500/5">Ver Historial de Cortes</Button>
@@ -450,30 +562,34 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
         <form onSubmit={handleSubmit} className="space-y-6 pb-6">
            <div className="flex flex-col items-center">
               <div className="w-24 h-24 rounded-[2.5rem] theme-bg-subtle border-2 theme-border flex items-center justify-center overflow-hidden relative cursor-pointer group hover:border-blue-500 transition-colors" onClick={() => setPhotoMenu({ isOpen: true, isEdit: !!editing })}>
-                {currentPhoto ? (
+                {isUploadingPhoto ? (
+                  <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                ) : currentPhoto ? (
                   <img src={currentPhoto} className="w-full h-full object-cover" />
                 ) : (
                   <Camera size={32} className="opacity-20 group-hover:opacity-100 transition-opacity" />
                 )}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Edit2 className="text-white" /></div>
+                {!isUploadingPhoto && <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Edit2 className="text-white" /></div>}
               </div>
            </div>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Nombre Completo</label><input className="w-full glass-input rounded-xl px-4 py-4 font-bold text-sm" value={isAdding ? form.fullName : editing?.fullName} onChange={e => isAdding ? setForm({...form, fullName: e.target.value.toUpperCase()}) : editing && setEditing({...editing, fullName: e.target.value.toUpperCase()})} required /></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">ID Flota</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.teamCode : editing?.teamCode} onChange={e => isAdding ? setForm({...form, teamCode: e.target.value.toUpperCase()}) : editing && setEditing({...editing, teamCode: e.target.value.toUpperCase()})} required /></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">CURP</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.curp : editing?.curp} onChange={e => isAdding ? setForm({...form, curp: e.target.value.toUpperCase()}) : editing && setEditing({...editing, curp: e.target.value.toUpperCase()})} maxLength={18} /></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">RFC</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.rfc : editing?.rfc} onChange={e => isAdding ? setForm({...form, rfc: e.target.value.toUpperCase()}) : editing && setEditing({...editing, rfc: e.target.value.toUpperCase()})} maxLength={13} /></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">NSS</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.nss : editing?.nss} onChange={e => isAdding ? setForm({...form, nss: e.target.value}) : editing && setEditing({...editing, nss: e.target.value})} maxLength={11} /></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Venc. Cofepris</label><input type="date" className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs" value={isAdding ? form.cofepris_expiration : editing?.cofepris_expiration} onChange={e => isAdding ? setForm({...form, cofepris_expiration: e.target.value}) : editing && setEditing({...editing, cofepris_expiration: e.target.value})} /></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Estatus Operativo</label><select className="w-full glass-input rounded-xl px-4 py-4 text-xs font-bold" value={isAdding ? form.status : editing?.status} onChange={e => isAdding ? setForm({...form, status: e.target.value as DriverStatus}) : editing && setEditing({...editing, status: e.target.value as DriverStatus})}>{Object.values(DriverStatus).map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Estado Gafete</label><select className="w-full glass-input rounded-xl px-4 py-4 text-xs font-bold" value={String(isAdding ? form.isActive : editing?.isActive)} onChange={e => isAdding ? setForm({...form, isActive: e.target.value === 'true'}) : editing && setEditing({...editing, isActive: e.target.value === 'true'})}><option value="true">Vigente</option><option value="false">Bloqueado</option></select></div>
+              <div className="md:col-span-2 space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Nombre Completo</label><input className="w-full glass-input rounded-xl px-4 py-4 font-bold text-sm uppercase" value={isAdding ? form.fullName : editing?.fullName || ''} onChange={e => isAdding ? setForm(prev => ({...prev, fullName: e.target.value.toUpperCase()})) : setEditing(prev => prev ? ({...prev, fullName: e.target.value.toUpperCase()}) : null)} placeholder="EJ: JUAN PEREZ" /></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">ID Flota</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.teamCode : editing?.teamCode || ''} onChange={e => isAdding ? setForm(prev => ({...prev, teamCode: e.target.value.toUpperCase()})) : setEditing(prev => prev ? ({...prev, teamCode: e.target.value.toUpperCase()}) : null)} placeholder="EJ: W_SMARTGO_00" /></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">CURP</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.curp : editing?.curp || ''} onChange={e => isAdding ? setForm(prev => ({...prev, curp: e.target.value.toUpperCase()})) : setEditing(prev => prev ? ({...prev, curp: e.target.value.toUpperCase()}) : null)} maxLength={18} placeholder="18 CARACTERES" /></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">RFC</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.rfc : editing?.rfc || ''} onChange={e => isAdding ? setForm(prev => ({...prev, rfc: e.target.value.toUpperCase()})) : setEditing(prev => prev ? ({...prev, rfc: e.target.value.toUpperCase()}) : null)} maxLength={13} placeholder="13 CARACTERES" /></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">NSS</label><input className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs uppercase" value={isAdding ? form.nss : editing?.nss || ''} onChange={e => isAdding ? setForm(prev => ({...prev, nss: e.target.value})) : setEditing(prev => prev ? ({...prev, nss: e.target.value}) : null)} maxLength={11} placeholder="11 DÍGITOS" /></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Venc. Cofepris</label><input type="date" className="w-full glass-input rounded-xl px-4 py-4 font-mono text-xs" value={isAdding ? form.cofepris_expiration : editing?.cofepris_expiration || ''} onChange={e => isAdding ? setForm(prev => ({...prev, cofepris_expiration: e.target.value})) : setEditing(prev => prev ? ({...prev, cofepris_expiration: e.target.value}) : null)} /></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Estatus Operativo</label><select className="w-full glass-input rounded-xl px-4 py-4 text-xs font-bold" value={isAdding ? form.status : editing?.status} onChange={e => isAdding ? setForm(prev => ({...prev, status: e.target.value as DriverStatus})) : setEditing(prev => prev ? ({...prev, status: e.target.value as DriverStatus}) : null)}>{Object.values(DriverStatus).map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+              <div className="space-y-1"><label className="text-[9px] font-black uppercase theme-text-muted pl-1">Estado Gafete</label><select className="w-full glass-input rounded-xl px-4 py-4 text-xs font-bold" value={String(isAdding ? form.isActive : editing?.isActive)} onChange={e => isAdding ? setForm(prev => ({...prev, isActive: e.target.value === 'true'})) : setEditing(prev => prev ? ({...prev, isActive: e.target.value === 'true'}) : null)}><option value="true">Vigente</option><option value="false">Vencido</option></select></div>
            </div>
 
            <div className="space-y-4">
-              <p className="text-[10px] font-black theme-text-muted uppercase border-b theme-border pb-2 tracking-widest">Configuración por Sede</p>
+              <p className="text-[10px] font-black theme-text-muted uppercase border-b theme-border pb-2 tracking-widest flex justify-between items-center">
+                <span>Asignación a Sedes Autorizadas</span>
+              </p>
               <div className="grid grid-cols-1 gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                {stores.filter(s => isSuper || (currentUser.assignedStoreIds || []).includes(s.id)).map(s => {
+                {accessibleStores.map(s => {
                   const isChecked = isAdding ? (form.assignedStoreIds || []).includes(s.id) : (editing?.assignedStoreIds || []).includes(s.id);
                   const currentFinances = isAdding ? getStoreFinance(form, s.id) : (editing ? getStoreFinance(editing, s.id) : { dailyWage: 350, dailyGas: 180 });
                   
@@ -487,20 +603,25 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
                          <div className="grid grid-cols-2 gap-4 mt-4 pl-9 animate-in fade-in slide-in-from-top-1 duration-300">
                            <div className="space-y-1.5">
                              <p className="text-[8px] font-black uppercase theme-text-muted tracking-widest flex items-center gap-1"><DollarSign size={10} /> Sueldo</p>
-                             <input type="number" className="w-full bg-black/20 border theme-border rounded-xl px-3 py-2 text-sm font-black text-emerald-500 outline-none focus:border-emerald-500/50" value={currentFinances.dailyWage} onChange={e => handleUpdateFinance(s.id, 'dailyWage', e.target.value, isAdding ? 'form' : 'edit')} />
+                             <input type="number" className="w-full bg-black/20 border theme-border rounded-xl px-3 py-2 text-sm font-black text-emerald-500 outline-none focus:border-emerald-500/50" value={currentFinances.dailyWage || ''} onChange={e => handleUpdateFinance(s.id, 'dailyWage', e.target.value, isAdding ? 'form' : 'edit')} />
                            </div>
                            <div className="space-y-1.5">
                              <p className="text-[8px] font-black uppercase theme-text-muted tracking-widest flex items-center gap-1"><Fuel size={10} /> Gasolina</p>
-                             <input type="number" className="w-full bg-black/20 border theme-border rounded-xl px-3 py-2 text-sm font-black text-amber-500 outline-none focus:border-amber-500/50" value={currentFinances.dailyGas} onChange={e => handleUpdateFinance(s.id, 'dailyGas', e.target.value, isAdding ? 'form' : 'edit')} />
+                             <input type="number" className="w-full bg-black/20 border theme-border rounded-xl px-3 py-2 text-sm font-black text-amber-500 outline-none focus:border-amber-500/50" value={currentFinances.dailyGas || ''} onChange={e => handleUpdateFinance(s.id, 'dailyGas', e.target.value, isAdding ? 'form' : 'edit')} />
                            </div>
                          </div>
                        )}
                     </div>
                   );
                 })}
+                {accessibleStores.length === 0 && (
+                  <div className="p-10 text-center theme-text-muted uppercase text-[9px] font-black border-2 border-dashed theme-border rounded-3xl opacity-40">
+                    No tienes sedes asignadas para gestionar personal.
+                  </div>
+                )}
               </div>
            </div>
-           <Button type="submit" variant="success" className="w-full py-4 text-[10px] font-black uppercase shadow-xl shadow-emerald-900/20 tracking-[0.2em]">{isAdding ? "Registrar Operador" : "Actualizar Operador"}</Button>
+           <Button type="submit" variant="success" className="w-full py-4 text-[10px] font-black uppercase shadow-xl shadow-emerald-900/20 tracking-[0.2em]" disabled={accessibleStores.length === 0 || isUploadingPhoto}>{isAdding ? "Registrar Operador" : "Actualizar Operador"}</Button>
         </form>
       </Modal>
 
@@ -526,7 +647,7 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
                   <label className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1.5 block">Vigencia Gafete</label>
                   <div className="grid grid-cols-2 gap-1.5">
                      {['all', 'true', 'false'].map(b => (
-                       <button key={b} onClick={() => { setFilterBadge(b); setCurrentPage(1); }} className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${filterBadge === b ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'theme-bg-subtle theme-border theme-text-muted hover:theme-text-main'}`}>{b === 'all' ? 'Todos' : b === 'true' ? 'Vigente' : 'Inactivo'}</button>
+                       <button key={b} onClick={() => { setFilterBadge(b); setCurrentPage(1); }} className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase border transition-all ${filterBadge === b ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'theme-bg-subtle theme-border theme-text-muted hover:theme-text-main'}`}>{b === 'all' ? 'Todos' : b === 'true' ? 'Vigente' : 'Vencido'}</button>
                      ))}
                   </div>
                </div>
@@ -540,7 +661,7 @@ export const DriverManagement: React.FC<Props> = ({ currentUser, drivers = [], s
                </div>
             </div>
             <div className="flex gap-2 pt-2">
-               <button onClick={() => { setFilterStatus('all'); setFilterBadge('all'); setFilterCofepris('all'); setFilterStore('all'); setCurrentPage(1); }} className="flex-1 py-3 text-[9px] font-black uppercase theme-text-muted border theme-border rounded-xl">Limpiar</button>
+               <button onClick={() => { setFilterStatus('all'); setFilterBadge('all'); setFilterCofepris('all'); setFilterStore('all'); setCurrentPage(1); }} className="flex-1 py-3 text-[9px] font-black theme-text-muted border theme-border rounded-xl">Limpiar</button>
                <Button onClick={() => setShowFilterModal(false)} className="flex-1 py-3.5 uppercase font-black bg-blue-600">Cerrar y Ver</Button>
             </div>
          </div>

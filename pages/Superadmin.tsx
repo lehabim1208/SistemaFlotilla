@@ -1,10 +1,8 @@
 
 import React, { useState } from 'react';
-// Fix: Added Loader2 to the imports from lucide-react
-import { Store as StoreIcon, Edit2, Trash2, Eye, EyeOff, Shield, Power, PowerOff, AlertCircle, Settings as SettingsIcon, AlertTriangle, RefreshCcw, Download, FileJson, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Store as StoreIcon, Edit2, Trash2, Eye, EyeOff, Shield, Power, PowerOff, AlertCircle, Settings as SettingsIcon, AlertTriangle, RefreshCcw, Download, Database, FileJson, FileSpreadsheet, Trash } from 'lucide-react';
 import { GlassCard, Button, Modal, Toast } from '../components/UI';
 import { User, Store, UserRole, Driver, DailyRole } from '../types';
-import JSZip from 'jszip';
 
 interface Props {
   users: User[];
@@ -46,7 +44,6 @@ export const Superadmin: React.FC<Props> = ({
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '', assignedStoreIds: [] as string[] });
   const [showPwd, setShowPwd] = useState(false);
   const [showEditPwd, setShowEditPwd] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const handleCreateAdmin = () => {
@@ -62,6 +59,43 @@ export const Superadmin: React.FC<Props> = ({
     });
     setNewAdmin({ username: '', password: '', assignedStoreIds: [] });
     setToast({ message: 'Admin registrado', type: 'success' });
+  };
+
+  const downloadJSON = () => {
+    const data = {
+      version: '4.2',
+      exportDate: new Date().toISOString(),
+      users, // Se agregaron los usuarios al backup JSON
+      stores,
+      drivers,
+      history
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_completo_driveflow_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: 'JSON con Usuarios generado', type: 'success' });
+  };
+
+  const downloadCSV = () => {
+    // Exportamos el historial de roles (Assignments) que es lo más relevante para Excel
+    let csv = "Fecha,Sede,Codigo,Operador,ID Flota,Horario,Asistencia\n";
+    history.forEach(role => {
+      role.assignments.forEach(a => {
+        csv += `${role.date},${role.storeName.replace(/,/g, '')},${role.storeCode},${a.driverName.replace(/,/g, '')},${a.teamCode},${a.schedule.replace(/,/g, '-')},${a.attendance?.status || 'Pendiente'}\n`;
+      });
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte_roles_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast({ message: 'Excel (CSV) generado', type: 'success' });
   };
 
   const toggleAdminStatus = (u: User) => {
@@ -108,74 +142,6 @@ export const Superadmin: React.FC<Props> = ({
     setToast({ message: 'Historial eliminado íntegramente', type: 'success' });
   };
 
-  // --- Lógica de Backup Maestro (JSON) ---
-  const handleExportJSON = () => {
-    const backupData = {
-      timestamp: new Date().toISOString(),
-      version: "2.5",
-      tables: {
-        users,
-        stores,
-        drivers,
-        history
-      }
-    };
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `DriveFlow_MASTER_BACKUP_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    setToast({ message: 'Backup Maestro (JSON) generado', type: 'success' });
-  };
-
-  // --- Lógica de Reportes CSV (Excel) ---
-  const handleExportCSVs = async () => {
-    setIsExporting(true);
-    const zip = new JSZip();
-    
-    // Función auxiliar para convertir a CSV seguro para Excel (UTF-8 BOM)
-    const toExcelCSV = (headers: string[], rows: string[][]) => {
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(','))
-      ].join('\n');
-      return '\uFEFF' + csvContent; // UTF-8 BOM para que Excel detecte tildes
-    };
-
-    // 1. Sedes
-    const storeHeaders = ['ID', 'NOMBRE', 'CÓDIGO'];
-    const storeRows = stores.map(s => [s.id, s.name, s.code]);
-    zip.file('01_Sedes_Logisticas.csv', toExcelCSV(storeHeaders, storeRows));
-
-    // 2. Operadores
-    const driverHeaders = ['ID', 'NOMBRE COMPLETO', 'ID FLOTA', 'CURP', 'RFC', 'NSS', 'STATUS', 'ACTIVO', 'VENC_COFEPRIS'];
-    const driverRows = drivers.map(d => [
-      d.id, d.fullName, d.teamCode, d.curp || '', d.rfc || '', d.nss || '', d.status, d.isActive ? 'SÍ' : 'NO', d.cofepris_expiration || ''
-    ]);
-    zip.file('02_Operadores_Expedientes.csv', toExcelCSV(driverHeaders, driverRows));
-
-    // 3. Historial de Roles (Relación detallada)
-    const historyHeaders = ['ID_ROL', 'FECHA', 'SEDE', 'CÓDIGO_SEDE', 'TURNO', 'OPERADOR', 'ID_FLOTA_OPERADOR', 'ASISTENCIA', 'MOTIVO'];
-    const historyRows = history.flatMap(role => 
-      role.assignments.map(a => [
-        role.id, role.date, role.storeName, role.storeCode, a.schedule, a.driverName, a.teamCode || '', a.attendance?.status || 'SIN REGISTRO', a.attendance?.reason || ''
-      ])
-    );
-    zip.file('03_Historial_Roles_Completo.csv', toExcelCSV(historyHeaders, historyRows));
-
-    // Generar ZIP y descargar
-    const content = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(content);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `DriveFlow_REPORTES_EXCEL_${new Date().toISOString().split('T')[0]}.zip`;
-    a.click();
-    
-    setIsExporting(false);
-    setToast({ message: 'Paquete de Reportes Excel (.csv) listo', type: 'success' });
-  };
-
   return (
     <div className="space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -195,7 +161,7 @@ export const Superadmin: React.FC<Props> = ({
         </button>
         <button 
           onClick={() => setView('system')} 
-          className={`flex-1 md:flex-none px-4 md:px-6 py-3 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${view === 'system' ? 'bg-rose-600 text-white shadow-xl' : 'theme-text-muted hover:theme-text-main'}`}
+          className={`flex-1 md:flex-none px-4 md:px-6 py-3 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${view === 'system' ? 'bg-[var(--primary)] text-white shadow-xl' : 'theme-text-muted hover:theme-text-main'}`}
         >
           Sistema
         </button>
@@ -257,14 +223,14 @@ export const Superadmin: React.FC<Props> = ({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stores.map(s => (
-              <div key={s.id} className="p-5 theme-bg-subtle rounded-2xl border theme-border flex justify-between items-center group transition-all hover:theme-bg-surface hover:shadow-xl">
-                <div>
-                  <p className="font-black theme-text-main uppercase text-sm truncate">{s.name}</p>
-                  <p className="text-[var(--primary)] font-mono text-[9px] font-black">{s.code}</p>
+              <div key={s.id} className="p-4 theme-bg-subtle rounded-2xl border theme-border flex justify-between items-center group transition-all hover:theme-bg-surface hover:shadow-xl">
+                <div className="min-w-0 flex-1 mr-3">
+                  <p className="font-black theme-text-main uppercase text-[11px] truncate leading-tight">{s.name}</p>
+                  <p className="text-[var(--primary)] font-mono text-[8px] font-black">{s.code}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setEditingStore(s)} className="p-2 text-amber-500 bg-amber-500/5 hover:bg-amber-500/20 border border-amber-500/10 rounded-xl transition-all"><Edit2 size={18} /></button>
-                  <button onClick={() => setDeletingStoreId(s.id)} className="p-2 text-rose-500 bg-rose-500/5 hover:bg-rose-500/20 border border-rose-500/10 rounded-xl transition-all"><Trash2 size={18} /></button>
+                <div className="flex gap-1.5 shrink-0">
+                  <button onClick={() => setEditingStore(s)} className="p-2 text-amber-500 bg-amber-500/5 hover:bg-amber-500/20 border border-amber-500/10 rounded-lg transition-all"><Edit2 size={14} /></button>
+                  <button onClick={() => setDeletingStoreId(s.id)} className="p-2 text-rose-500 bg-rose-500/5 hover:bg-rose-500/20 border border-rose-500/10 rounded-lg transition-all"><Trash2 size={14} /></button>
                 </div>
               </div>
             ))}
@@ -273,83 +239,43 @@ export const Superadmin: React.FC<Props> = ({
       )}
 
       {view === 'system' && (
-        <div className="space-y-6">
-          <GlassCard className="p-10 border-blue-500/20 bg-blue-500/[0.01] mb-6">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20">
-                <Download className="text-blue-500" size={28} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+           {/* Card Limpieza */}
+           <GlassCard className="p-8 space-y-6 flex flex-col justify-between">
+              <div className="space-y-4">
+                 <div className="flex items-center gap-3">
+                    <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20"><Trash className="text-rose-500" size={24} /></div>
+                    <h4 className="text-lg font-black theme-text-main uppercase tracking-tighter">Limpiar Historial</h4>
+                 </div>
+                 <p className="text-[10px] theme-text-muted font-bold uppercase leading-relaxed tracking-widest">
+                    Elimina permanentemente todos los roles y registros de asistencia generados en todas las sedes hasta la fecha. Esta acción <strong className="text-rose-500">no se puede deshacer</strong> y es útil para iniciar un nuevo periodo contable.
+                 </p>
               </div>
-              <div>
-                <h3 className="text-2xl font-black theme-text-main uppercase tracking-tighter">Exportación de Datos</h3>
-                <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest">Respaldo y Auditoría Administrativa</p>
-              </div>
-            </div>
+              <Button onClick={() => setShowResetConfirm(true)} variant="danger" className="w-full py-4 text-[10px] uppercase font-black shadow-xl shadow-rose-900/40">
+                 Ejecutar Limpieza Total
+              </Button>
+           </GlassCard>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-6 theme-bg-subtle rounded-3xl border theme-border space-y-4 hover:border-blue-500/30 transition-colors group">
-                <div className="flex justify-between items-start">
-                  <h4 className="text-xs font-black theme-text-main uppercase">Backup Maestro</h4>
-                  <FileJson className="text-blue-500/40 group-hover:text-blue-500 transition-colors" size={20} />
-                </div>
-                <p className="text-[9px] theme-text-muted font-bold uppercase leading-relaxed tracking-widest opacity-60">
-                  Descarga un archivo JSON completo con toda la estructura de la base de datos (Operadores, Sedes, Historial). Útil para migración o restauración técnica.
-                </p>
-                <Button 
-                  onClick={handleExportJSON} 
-                  variant="primary" 
-                  className="w-full py-5 text-[10px] uppercase font-black bg-blue-600 shadow-xl shadow-blue-900/20"
-                >
-                  Exportar Backup (.json)
-                </Button>
+           {/* Card Descargas */}
+           <GlassCard className="p-8 space-y-6 flex flex-col justify-between">
+              <div className="space-y-4">
+                 <div className="flex items-center gap-3">
+                    <div className="p-3 bg-blue-500/10 rounded-2xl border border-blue-500/20"><Database className="text-blue-500" size={24} /></div>
+                    <h4 className="text-lg font-black theme-text-main uppercase tracking-tighter">Descargar Datos</h4>
+                 </div>
+                 <p className="text-[10px] theme-text-muted font-bold uppercase leading-relaxed tracking-widest">
+                    Obtén un respaldo físico de toda la información operativa almacenada en el sistema (Usuarios, Conductores, Sedes y Roles). Puedes elegir entre formato íntegro de base de datos (JSON) o reporte tabular (CSV).
+                 </p>
               </div>
-
-              <div className="p-6 theme-bg-subtle rounded-3xl border theme-border space-y-4 hover:border-emerald-500/30 transition-colors group">
-                <div className="flex justify-between items-start">
-                  <h4 className="text-xs font-black theme-text-main uppercase">Reportes Excel / CSV</h4>
-                  <FileSpreadsheet className="text-emerald-500/40 group-hover:text-emerald-500 transition-colors" size={20} />
-                </div>
-                <p className="text-[9px] theme-text-muted font-bold uppercase leading-relaxed tracking-widest opacity-60">
-                  Genera reportes tabulares compatibles con Excel. Incluye lista de conductores, asistencias detalladas y configuración de sedes en formato separado.
-                </p>
-                <Button 
-                  onClick={handleExportCSVs} 
-                  disabled={isExporting}
-                  variant="success" 
-                  className="w-full py-5 text-[10px] uppercase font-black shadow-xl shadow-emerald-900/20"
-                >
-                  {isExporting ? <Loader2 className="animate-spin" size={16} /> : 'Descargar Reportes (.csv)'}
-                </Button>
+              <div className="grid grid-cols-2 gap-3">
+                 <Button onClick={downloadJSON} variant="outline" className="py-4 text-[9px] font-black uppercase tracking-widest border-blue-500/20 text-blue-500">
+                    <FileJson size={16} /> Descargar JSON
+                 </Button>
+                 <Button onClick={downloadCSV} variant="outline" className="py-4 text-[9px] font-black uppercase tracking-widest border-emerald-500/20 text-emerald-500">
+                    <FileSpreadsheet size={16} /> Descargar CSV
+                 </Button>
               </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="p-10 border-rose-500/30 bg-rose-500/[0.02]">
-            <div className="flex items-center gap-4 mb-8">
-              <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20">
-                <AlertTriangle className="text-rose-500" size={28} />
-              </div>
-              <div>
-                <h3 className="text-2xl font-black text-rose-500 uppercase tracking-tighter">Zona de Peligro</h3>
-                <p className="theme-text-muted text-[10px] font-black uppercase tracking-widest">Mantenimiento y Reseteo del Núcleo</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-              <div className="p-6 theme-bg-subtle rounded-3xl border theme-border space-y-4">
-                <h4 className="text-xs font-black theme-text-main uppercase">Reset Operativo</h4>
-                <p className="text-[9px] theme-text-muted font-bold uppercase leading-relaxed tracking-widest opacity-60">
-                  Esta acción eliminará todos los roles publicados, el historial de asistencia y los balances financieros de los conductores. Úselo para entregar el sistema limpio al cliente.
-                </p>
-                <Button 
-                  onClick={() => setShowResetConfirm(true)} 
-                  variant="danger" 
-                  className="w-full py-5 text-[10px] uppercase font-black shadow-xl shadow-rose-900/40"
-                >
-                  <RefreshCcw size={16} /> Reiniciar Historial de Roles
-                </Button>
-              </div>
-            </div>
-          </GlassCard>
+           </GlassCard>
         </div>
       )}
 

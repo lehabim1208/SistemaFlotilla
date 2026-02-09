@@ -1,16 +1,16 @@
 
 {
-  "short_name": "DriveFlow",
-  "name": "DriveFlow - Sistema Logística",
+  "short_name": "Logística",
+  "name": "Sistema Logística",
   "icons": [
     {
-      "src": "./logo.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2555/2555013.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "./logo.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/2555/2555013.png",
       "sizes": "192x192",
       "type": "image/png"
     }

@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="DriveFlow" />
-    <link rel="apple-touch-icon" href="./logo.png" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2555/2555013.png" />
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -56,12 +56,12 @@
         transition: background-color 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s ease;
       }
       
-      .theme-text-main { color: var(--text-main); }
-      .theme-text-muted { color: var(--text-muted); }
-      .theme-bg-app { background-color: var(--bg-app); }
-      .theme-bg-surface { background-color: var(--surface); }
-      .theme-bg-subtle { background-color: var(--subtle-bg); }
-      .theme-border { border-color: var(--surface-border); }
+      .theme-text-main { color: var(--text-main); transition: color 0.3s ease; }
+      .theme-text-muted { color: var(--text-muted); transition: color 0.3s ease; }
+      .theme-bg-app { background-color: var(--bg-app); transition: background-color 0.5s ease; }
+      .theme-bg-surface { background-color: var(--surface); transition: background-color 0.4s ease; }
+      .theme-bg-subtle { background-color: var(--subtle-bg); transition: background-color 0.4s ease; }
+      .theme-border { border-color: var(--surface-border); transition: border-color 0.4s ease; }
 
       .liquid-glass {
         background: var(--surface);
@@ -95,7 +95,8 @@
     "qrcode": "https://esm.sh/qrcode@^1.5.3",
     "otpauth": "https://esm.sh/otpauth@^9.3.1",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.39.0",
-    "jszip": "https://esm.sh/jszip@^3.10.1"
+    "jszip": "https://esm.sh/jszip@^3.10.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.39.0"
   }
 }
 </script>
@@ -112,6 +113,5 @@
         });
       }
     </script>
-    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
