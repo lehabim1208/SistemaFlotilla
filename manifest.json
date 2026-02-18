@@ -4,7 +4,7 @@
   "name": "DriveFlow - Sistema Logística",
   "icons": [
     {
-      "src": "./logo png",
+      "src": "./logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
