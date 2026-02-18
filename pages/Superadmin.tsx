@@ -191,7 +191,7 @@ export const Superadmin: React.FC<Props> = ({
                     <td className="py-4 px-2">
                       <div className="flex items-center gap-2">
                         <Shield size={14} className={u.isDeleted ? 'text-rose-500' : 'text-blue-500'} />
-                        <span className={`font-black uppercase text-sm ${u.isDeleted ? 'text-rose-500 opacity-50' : ''}`}>{u.username}</span>
+                        <span className={`font-black text-sm ${u.isDeleted ? 'text-rose-500 opacity-50' : ''}`}>{u.username}</span>
                       </div>
                     </td>
                     <td className="py-4 px-2">
@@ -225,7 +225,7 @@ export const Superadmin: React.FC<Props> = ({
             {stores.map(s => (
               <div key={s.id} className="p-4 theme-bg-subtle rounded-2xl border theme-border flex justify-between items-center group transition-all hover:theme-bg-surface hover:shadow-xl">
                 <div className="min-w-0 flex-1 mr-3">
-                  <p className="font-black theme-text-main uppercase text-[11px] truncate leading-tight">{s.name}</p>
+                  <p className="font-black theme-text-main text-[11px] truncate leading-tight">{s.name}</p>
                   <p className="text-[var(--primary)] font-mono text-[8px] font-black">{s.code}</p>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
@@ -325,7 +325,7 @@ export const Superadmin: React.FC<Props> = ({
       <Modal isOpen={!!editingStore} onClose={() => setEditingStore(null)} title="Editar Sede">
         {editingStore && (
           <form onSubmit={(e) => { e.preventDefault(); handleUpdateStoreAction(editingStore); }} className="space-y-4">
-            <input className="w-full glass-input rounded-xl px-5 py-4 font-black uppercase" value={editingStore.name} onChange={e => setEditingStore({...editingStore, name: e.target.value})} />
+            <input className="w-full glass-input rounded-xl px-5 py-4 font-bold" value={editingStore.name} onChange={e => setEditingStore({...editingStore, name: e.target.value})} />
             <input className="w-full glass-input rounded-xl px-5 py-4 font-mono uppercase" value={editingStore.code} onChange={e => setEditingStore({...editingStore, code: e.target.value})} />
             <Button type="submit" variant="warning" className="w-full py-5 text-[10px] uppercase font-black">Actualizar</Button>
           </form>
@@ -355,7 +355,7 @@ export const Superadmin: React.FC<Props> = ({
         {editingAdmin && (
           <form onSubmit={(e) => { e.preventDefault(); onUpdateAdmin(editingAdmin); setEditingAdmin(null); setToast({ message: 'Cambios guardados', type: 'success' }); }} className="space-y-6">
             <div className="space-y-4">
-              <input className="w-full glass-input rounded-xl px-4 py-3 font-black uppercase outline-none" value={editingAdmin.username} onChange={e => setEditingAdmin({...editingAdmin, username: e.target.value})} />
+              <input className="w-full glass-input rounded-xl px-4 py-3 font-bold outline-none" value={editingAdmin.username} onChange={e => setEditingAdmin({...editingAdmin, username: e.target.value})} />
               <div className="relative">
                 <input className="w-full glass-input rounded-xl px-4 py-3 outline-none pr-12 font-bold" type={showEditPwd ? "text" : "password"} value={editingAdmin.password || ''} onChange={e => setEditingAdmin({...editingAdmin, password: e.target.value})} />
                 <button type="button" onClick={() => setShowEditPwd(!showEditPwd)} className="absolute right-4 top-1/2 -translate-y-1/2 theme-text-muted">{showEditPwd ? <EyeOff size={18} /> : <Eye size={18} />}</button>

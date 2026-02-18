@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { Calendar, Save, Download, Clock, AlertCircle, Zap, Edit3, Check, GripVertical, MoveVertical, X as CloseIcon, MessageCircle, MapPin, Hash, ArrowRight, Info } from 'lucide-react';
+import { Calendar, Save, Download, Clock, AlertCircle, Zap, Edit3, Check, GripVertical, MoveVertical, X as CloseIcon, MessageCircle, MapPin, Hash, ArrowRight, Info, Users, RefreshCcw, Search, UserCheck, UserPlus, Timer, X, ArrowUpDown, Trash2, Trash } from 'lucide-react';
 import { GlassCard, Button, Modal, Toast } from '../components/UI';
 import { User, Store, Driver, DailyRole, DriverStatus, Assignment, UserRole } from '../types';
 import { STORE_SCHEDULES } from '../constants';
@@ -20,7 +20,6 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
     ? (stores || []) 
     : (stores || []).filter(s => currentUser.assignedStoreIds?.includes(s.id));
     
-  // Lógica de sede predeterminada: Walmart Cristal (s3) para adminanwar
   const [selectedStore, setSelectedStore] = useState(() => {
     if (currentUser.username === 'adminanwar') {
       const cristal = assignedStores.find(s => s.id === 's3');
@@ -29,66 +28,95 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
     return assignedStores[0]?.id || '';
   });
 
-  // Lógica de fecha predeterminada: Día siguiente
   const [date, setDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Mexico_City',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const now = new Date();
+    const tomorrow = new Date(now.getTime() + (24 * 60 * 60 * 1000));
+    return formatter.format(tomorrow);
   });
 
   const [requiredCount, setRequiredCount] = useState<number | string>(3);
   const [scheduleMode, setScheduleMode] = useState<'AUTO' | 'FIXED'>('FIXED');
   const [startEntryTime, setStartEntryTime] = useState('07:00');
   const [endEntryTime, setEndEntryTime] = useState('12:00');
+  const [manualSelection, setManualSelection] = useState(false);
+  const [selectedManualDriverIds, setSelectedManualDriverIds] = useState<string[]>([]);
+  const [isPickingDrivers, setIsPickingDrivers] = useState(false);
   
   const [generatedRole, setGeneratedRole] = useState<DailyRole | null>(null);
-  const [editingIndices, setEditingIndices] = useState<Set<number>>(new Set());
-  const [tempSchedules, setTempSchedules] = useState<Record<number, string>>({});
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isReorderMode, setIsReorderMode] = useState(false);
+  const [reorderSelectedIndex, setReorderSelectedIndex] = useState<number | null>(null);
+  const [swappingIndex, setSwappingIndex] = useState<number | null>(null);
   
+  const [isAddingOperator, setIsAddingOperator] = useState(false);
+  const [newOpDriver, setNewOpDriver] = useState<Driver | null>(null);
+  const [newOpEntry, setNewOpEntry] = useState("07:00");
+  const [newOpExit, setNewOpExit] = useState("17:00");
+
+  const [editingScheduleIndex, setEditingScheduleIndex] = useState<number | null>(null);
+  const [pickerEntry, setPickerEntry] = useState("07:00");
+  const [pickerExit, setPickerExit] = useState("17:00");
+
+  const [deletingAssignmentIndex, setDeletingAssignmentIndex] = useState<number | null>(null);
+
   const [showWarning, setShowWarning] = useState<{ isOpen: boolean; msg: string }>({ isOpen: false, msg: '' });
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [searchPicker, setSearchPicker] = useState('');
+
+  const currentPreviewSchedule = useMemo(() => {
+    return `${formatTo12h(pickerEntry)} A ${formatTo12h(pickerExit)}`;
+  }, [pickerEntry, pickerExit]);
 
   const storeDrivers = useMemo(() => (drivers || []).filter(d => (d.assignedStoreIds || []).includes(selectedStore)), [selectedStore, drivers]);
 
-  const isLocked = editingIndices.size > 0;
+  const busyDriverIds = useMemo(() => {
+    return (history || [])
+      .filter(h => h.date === date)
+      .flatMap(h => h.assignments.map(a => a.driverId));
+  }, [history, date]);
 
-  const formatShortName = (name: string) => {
+  const availableDrivers = useMemo(() => {
+    return storeDrivers.filter(d => 
+      d.isActive === true && 
+      d.status === DriverStatus.AVAILABLE && 
+      !busyDriverIds.includes(d.id)
+    );
+  }, [storeDrivers, busyDriverIds]);
+
+  function formatShortName(name: string) {
     if (!name) return 'S/N';
     const parts = name.trim().split(/\s+/);
     if (parts.length <= 1) return name;
     return `${parts[0]} ${parts[1]}`;
-  };
+  }
 
-  const formatTo12h = (timeStr: string) => {
+  function formatTo12h(timeStr: string) {
     if (!timeStr) return "07:00 AM";
     const cleanTime = timeStr.trim().toUpperCase();
-    
-    let hours = 0;
-    let minutes = 0;
-
-    // Detectar AM/PM existente
+    let hours = 0, minutes = 0;
     const hasAMPM = cleanTime.includes('AM') || cleanTime.includes('PM');
     if (hasAMPM) {
       const ampm = cleanTime.includes('PM') ? 'PM' : 'AM';
       const timePart = cleanTime.replace('AM', '').replace('PM', '').trim();
       const [h, m] = timePart.split(':').map(Number);
-      hours = h;
-      minutes = m || 0;
+      hours = h; minutes = m || 0;
       if (ampm === 'PM' && hours !== 12) hours += 12;
       if (ampm === 'AM' && hours === 12) hours = 0;
     } else {
       const [h, m] = cleanTime.split(':').map(Number);
-      hours = h;
-      minutes = m || 0;
+      if (isNaN(h)) return timeStr;
+      hours = h; minutes = m || 0;
     }
-
     const finalAMPM = hours >= 12 ? 'PM' : 'AM';
     const h12 = hours % 12 || 12;
     return `${h12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${finalAMPM}`;
-  };
+  }
 
   const getMinutesFromSchedule = (timeStr: string) => {
     const formatted = formatTo12h(timeStr);
@@ -97,6 +125,16 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
     if (ampm === 'PM' && h !== 12) h += 12;
     if (ampm === 'AM' && h === 12) h = 0;
     return h * 60 + m;
+  };
+
+  const time12To24 = (time12: string) => {
+    const parts = time12.split(' ');
+    if (parts.length < 2) return "07:00";
+    const [time, ampm] = parts;
+    let [h, m] = time.split(':').map(Number);
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   };
 
   const add10Hours = (time24: string) => {
@@ -116,23 +154,19 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
     return `${parseInt(day)} de ${monthName} de ${year}`;
   };
 
-  const performGeneration = () => {
+  const performGeneration = (preselectedIds?: string[]) => {
     const count = typeof requiredCount === 'string' ? parseInt(requiredCount) : requiredCount;
-    const busyDriverIds = (history || [])
-      .filter(h => h.date === date)
-      .flatMap(h => h.assignments.map(a => a.driverId));
-
-    const available = storeDrivers.filter(d => 
-      d.isActive === true && 
-      d.status === DriverStatus.AVAILABLE &&
-      !busyDriverIds.includes(d.id)
-    );
-
     const store = (stores || []).find(s => s.id === selectedStore);
     if (!store) return;
 
-    let candidates = [...available].sort(() => Math.random() - 0.5);
-    let selection = candidates.slice(0, count as number);
+    let selection: Driver[] = [];
+    if (preselectedIds && preselectedIds.length > 0) {
+      selection = preselectedIds.map(id => drivers.find(d => d.id === id)!).filter(Boolean);
+      selection = selection.sort(() => Math.random() - 0.5);
+    } else {
+      selection = [...availableDrivers].sort(() => Math.random() - 0.5).slice(0, count as number);
+    }
+
     let assignments: Assignment[] = [];
 
     if (scheduleMode === 'FIXED') {
@@ -159,23 +193,21 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
       });
     }
 
-    if (scheduleMode !== 'FIXED') {
-        assignments.sort((a, b) => {
-          const timeA = getMinutesFromSchedule(a.schedule.split(' A ')[0]);
-          const timeB = getMinutesFromSchedule(b.schedule.split(' A ')[0]);
-          return timeA - timeB;
-        });
-    }
+    assignments.sort((a, b) => {
+      const timeA = getMinutesFromSchedule(a.schedule.split(' A ')[0]);
+      const timeB = getMinutesFromSchedule(b.schedule.split(' A ')[0]);
+      return timeA - timeB;
+    });
 
     setGeneratedRole({
       id: `role_${Date.now()}`, storeId: store.id, storeName: store.name, storeCode: store.code, date, adminId: currentUser?.username || 'admin', createdAt: new Date().toISOString(),
       assignments
     });
-    setEditingIndices(new Set());
-    setTempSchedules({});
+    setReorderSelectedIndex(null);
     setIsReorderMode(false);
     setToast({ message: 'Propuesta generada exitosamente.', type: 'success' });
     setShowDuplicateConfirm(false);
+    setSelectedManualDriverIds([]);
   };
 
   const handleGenerate = () => {
@@ -184,179 +216,246 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
       setShowWarning({ isOpen: true, msg: 'Debes ingresar un número válido de conductores.' });
       return;
     }
-
     const alreadyHasRole = history.some(h => h.storeId === selectedStore && h.date === date);
-    if (alreadyHasRole) {
+    if (alreadyHasRole && !showDuplicateConfirm) {
       setShowDuplicateConfirm(true);
       return;
     }
-
-    const busyDriverIds = (history || [])
-      .filter(h => h.date === date)
-      .flatMap(h => h.assignments.map(a => a.driverId));
-
-    const available = storeDrivers.filter(d => 
-      d.isActive === true && 
-      d.status === DriverStatus.AVAILABLE &&
-      !busyDriverIds.includes(d.id)
-    );
-
-    if (count > available.length) {
-      setShowWarning({ isOpen: true, msg: `No hay suficientes conductores disponibles. Hay ${available.length} libres para esta fecha.` });
+    if (count > availableDrivers.length) {
+      setShowWarning({ isOpen: true, msg: `No hay suficientes conductores disponibles. Hay ${availableDrivers.length} libres para esta fecha.` });
       return;
     }
-
-    performGeneration();
+    if (manualSelection) {
+      setIsPickingDrivers(true);
+    } else {
+      performGeneration();
+    }
   };
 
-  const startEditing = (index: number, currentSchedule: string) => {
-    const newEditing = new Set(editingIndices);
-    newEditing.add(index);
-    setEditingIndices(newEditing);
-    setTempSchedules({ ...tempSchedules, [index]: currentSchedule });
+  const handleRowClickForReorder = (index: number) => {
+    if (!isReorderMode || !generatedRole) return;
+    if (reorderSelectedIndex === null) {
+      setReorderSelectedIndex(index);
+    } else {
+      if (reorderSelectedIndex === index) {
+        setReorderSelectedIndex(null);
+      } else {
+        const next = [...generatedRole.assignments];
+        const sourceDriver = { ...next[reorderSelectedIndex] };
+        const targetDriver = { ...next[index] };
+        
+        next[reorderSelectedIndex] = { ...next[reorderSelectedIndex], driverId: targetDriver.driverId, driverName: targetDriver.driverName, teamCode: targetDriver.teamCode };
+        next[index] = { ...next[index], driverId: sourceDriver.driverId, driverName: sourceDriver.driverName, teamCode: sourceDriver.teamCode };
+        
+        setGeneratedRole({ ...generatedRole, assignments: next });
+        setReorderSelectedIndex(null);
+        setToast({ message: 'Posiciones intercambiadas', type: 'info' });
+      }
+    }
   };
 
-  const confirmEdit = (index: number) => {
-    if (!generatedRole) return;
-    const newAssignments = [...(generatedRole.assignments || [])];
-    newAssignments[index].schedule = tempSchedules[index].toUpperCase();
-    
-    setGeneratedRole({ ...generatedRole, assignments: newAssignments });
-    const newEditing = new Set(editingIndices);
-    newEditing.delete(index);
-    setEditingIndices(newEditing);
-    
-    setToast({ message: 'Horario actualizado.', type: 'success' });
+  const handleDeleteAssignmentConfirm = () => {
+    if (deletingAssignmentIndex !== null && generatedRole) {
+      const next = [...generatedRole.assignments];
+      next.splice(deletingAssignmentIndex, 1);
+      setGeneratedRole({ ...generatedRole, assignments: next });
+      setDeletingAssignmentIndex(null);
+      setToast({ message: 'Operador removido de la propuesta', type: 'info' });
+    }
+  };
+
+  const handleAddNewOperator = () => {
+    if (!newOpDriver || !generatedRole) return;
+    const scheduleStr = `${formatTo12h(newOpEntry)} A ${formatTo12h(newOpExit)}`;
+    const newAsgn: Assignment = {
+      driverId: newOpDriver.id,
+      driverName: newOpDriver.fullName,
+      teamCode: newOpDriver.teamCode,
+      schedule: scheduleStr
+    };
+    const next = [...generatedRole.assignments, newAsgn].sort((a, b) => {
+      return getMinutesFromSchedule(a.schedule.split(' A ')[0]) - getMinutesFromSchedule(b.schedule.split(' A ')[0]);
+    });
+    setGeneratedRole({ ...generatedRole, assignments: next });
+    setIsAddingOperator(false);
+    setNewOpDriver(null);
+    setToast({ message: 'Nuevo operador insertado en la propuesta.', type: 'success' });
+  };
+
+  const handleSwapDriver = (newDriver: Driver) => {
+    if (swappingIndex === null || !generatedRole) return;
+    const nextAssignments = [...generatedRole.assignments];
+    nextAssignments[swappingIndex] = {
+      ...nextAssignments[swappingIndex],
+      driverId: newDriver.id,
+      driverName: newDriver.fullName,
+      teamCode: newDriver.teamCode
+    };
+    setGeneratedRole({ ...generatedRole, assignments: nextAssignments });
+    setSwappingIndex(null);
+    setToast({ message: 'Conductor actualizado.', type: 'success' });
   };
 
   const handlePublish = () => {
-    if (!generatedRole || isLocked || isReorderMode) return;
+    if (!generatedRole) return;
     onPublish(generatedRole);
     setGeneratedRole(null);
-    setToast({ message: 'Rol guardado', type: 'success' });
-  };
-
-  const handleShareWhatsAppFormal = () => {
-    if (!generatedRole || isLocked) return;
-    const storeName = generatedRole.storeName.toUpperCase();
-    const roleDate = getNaturalDate(generatedRole.date).toUpperCase();
-    let message = `*SMART GO LOGÍSTICA - REPORTE OPERATIVO*\n\n`;
-    message += `*SEDE:* ${storeName}\n`;
-    message += `*FECHA:* ${roleDate}\n`;
-    message += `------------------------------------------\n\n`;
-    message += `*RELACIÓN DE TURNOS Y ASIGNACIONES:*\n\n`;
-    generatedRole.assignments.forEach((a, i) => {
-      message += `${i + 1}. [${a.schedule}]\n`;
-      message += `   OPERADOR: ${formatShortName(a.driverName).toUpperCase()}\n`;
-      message += `   ID FLOTA: ${a.teamCode || 'S/ID'}\n\n`;
-    });
-    message += `------------------------------------------\n`;
-    message += `_Notificación oficial del sistema DriveFlow._`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    setToast({ message: 'Rol guardado exitosamente', type: 'success' });
   };
 
   const handleDownloadImage = () => {
-    if (!generatedRole || isLocked || isReorderMode) return;
+    if (!generatedRole) return;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const isDark = currentUser.settings?.darkMode ?? true;
-    
-    const width = 1080;
-    const headerHeight = 280;
-    const rowHeight = 110;
-    const padding = 70;
+    const isLightMode = document.documentElement.classList.contains('light-mode');
+    const isBA = generatedRole.storeCode.startsWith('BA_');
+
+    const colors = {
+      bg: isLightMode ? '#F1F5F9' : '#0F172A',
+      card: isLightMode ? '#FFFFFF' : '#1E293B',
+      primary: isBA ? '#15803d' : '#2563EB', 
+      textMain: isLightMode ? '#0F172A' : '#F8FAFC',
+      textMuted: isLightMode ? '#64748B' : '#94A3B8',
+      border: isLightMode ? '#E2E8F0' : '#334155'
+    };
+
+    const width = 1200;
+    const headerHeight = 320;
+    const rowHeight = 160; 
+    const padding = 80;
     const assignments = generatedRole.assignments || [];
-    const totalHeight = headerHeight + (assignments.length * rowHeight) + 160;
+    const totalHeight = headerHeight + (assignments.length * rowHeight) + 180;
     
     canvas.width = width;
     canvas.height = totalHeight;
 
-    ctx.fillStyle = isDark ? '#111827' : '#ffffff';
+    ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, width, totalHeight);
 
-    ctx.strokeStyle = '#2563eb';
-    ctx.lineWidth = 15;
-    ctx.strokeRect(0, 0, width, totalHeight);
-
-    ctx.fillStyle = '#2563eb';
-    ctx.fillRect(0, 0, width, headerHeight - 40);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 54px Inter, system-ui, sans-serif';
+    ctx.fillStyle = colors.primary;
+    ctx.fillRect(0, 0, width, 240);
+    
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 64px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText((generatedRole.storeName || 'Sede Logística').toUpperCase(), width / 2, 100);
+    ctx.fillText(generatedRole.storeName.toUpperCase(), width / 2, 110);
     
-    ctx.font = 'bold 28px Inter, sans-serif';
-    ctx.fillText(`ROL OPERATIVO - ${getNaturalDate(generatedRole.date).toUpperCase()}`, width / 2, 155);
-    
-    ctx.font = 'bold 20px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fillText(`ID SEDE: ${generatedRole.storeCode || '---'} | GENERADO POR: ${currentUser.username.toUpperCase()}`, width / 2, 195);
+    ctx.font = '800 28px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.letterSpacing = "4px";
+    ctx.fillText(`ROL OPERATIVO • ${getNaturalDate(generatedRole.date).toUpperCase()}`, width / 2, 165);
 
-    const tableTop = headerHeight + 20;
+    const tableX = padding;
+    const tableY = 220;
+    const tableW = width - (padding * 2);
+    const tableH = (assignments.length * rowHeight) + 120;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 60;
+    ctx.fillStyle = colors.card;
+    const r = 40;
+    ctx.beginPath();
+    ctx.moveTo(tableX + r, tableY);
+    ctx.lineTo(tableX + tableW - r, tableY);
+    ctx.quadraticCurveTo(tableX + tableW, tableY, tableX + tableW, tableY + r);
+    ctx.lineTo(tableX + tableW, tableY + tableH - r);
+    ctx.quadraticCurveTo(tableX + tableW, tableY + tableH, tableX + tableW - r, tableY + tableH);
+    ctx.lineTo(tableX + r, tableY + tableH);
+    ctx.quadraticCurveTo(tableX, tableY + tableH, tableX, tableY + tableH - r);
+    ctx.lineTo(tableX, tableY + r);
+    ctx.quadraticCurveTo(tableX, tableY, tableX + r, tableY);
+    ctx.fill();
+    ctx.restore();
+
+    // ORGANIZACIÓN DE COLUMNAS REDISEÑADA
     ctx.textAlign = 'left';
-    ctx.font = '800 22px Inter, sans-serif';
-    ctx.fillStyle = isDark ? '#f8fafc' : '#1e293b';
-    ctx.fillText('TURNO OPERATIVO', padding + 10, tableTop);
-    ctx.fillText('NOMBRE DEL OPERADOR', padding + 360, tableTop);
-    ctx.fillText('ID FLOTA', padding + 820, tableTop);
+    ctx.font = '900 22px Inter';
+    ctx.fillStyle = colors.textMuted;
+    ctx.letterSpacing = "2px";
+    
+    // Coordenadas base (mismo patrón que History)
+    const col1_X = tableX + 60;  // Turno
+    const col2_X = tableX + 340; // Operador
+    const col3_X = tableX + 760; // ID Flota
 
-    ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0';
+    ctx.fillText('TURNO', col1_X, tableY + 70);
+    ctx.fillText('OPERADOR', col2_X, tableY + 70); 
+    ctx.fillText('ID FLOTA', col3_X, tableY + 70);
+
+    ctx.strokeStyle = colors.border;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(padding, tableTop + 25);
-    ctx.lineTo(width - padding, tableTop + 25);
+    ctx.moveTo(tableX + 40, tableY + 100);
+    ctx.lineTo(tableX + tableW - 40, tableY + 100);
     ctx.stroke();
 
     assignments.forEach((assignment, index) => {
-      const y = tableTop + 85 + (index * rowHeight);
-      if (index % 2 === 0) {
-        ctx.fillStyle = isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc';
-        ctx.fillRect(padding, y - 55, width - (padding * 2), rowHeight - 10);
+      const y = tableY + 200 + (index * rowHeight);
+      
+      const times = assignment.schedule.toUpperCase().split(' A ');
+      const entry = times[0] || '---';
+      const exit = times[1] || '---';
+
+      // TURNO
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 32px monospace';
+      ctx.fillText(entry, col1_X, y - 25);
+      ctx.fillStyle = '#f43f5e';
+      ctx.fillText(exit, col1_X, y + 35);
+
+      // OPERADOR - Aprovechar espacio central
+      ctx.fillStyle = colors.textMain;
+      ctx.font = '900 30px Inter'; 
+      const name = formatShortName(assignment.driverName).toUpperCase();
+      
+      const maxNameWidth = 400; 
+      let displayName = name;
+      if (ctx.measureText(name).width > maxNameWidth) {
+          while (ctx.measureText(displayName + "...").width > maxNameWidth && displayName.length > 0) {
+              displayName = displayName.substring(0, displayName.length - 1);
+          }
+          displayName += "...";
       }
-      ctx.fillStyle = '#2563eb';
-      ctx.font = 'bold 24px monospace';
-      const schedule12h = assignment.schedule.split(' A ').map(formatTo12h).join(' A ');
-      ctx.fillText(schedule12h, padding + 10, y - 5);
-      ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a';
-      ctx.font = 'bold 26px Inter, sans-serif';
-      ctx.fillText(formatShortName(assignment.driverName).toUpperCase(), padding + 360, y - 5);
-      ctx.fillStyle = isDark ? 'rgba(248, 250, 252, 0.4)' : '#64748b';
-      ctx.font = 'bold 22px monospace';
-      ctx.fillText(assignment.teamCode || '---', padding + 820, y - 5);
+      ctx.fillText(displayName, col2_X, y + 5); 
+
+      // ID FLOTA - Adaptable (Negro en modo claro, Blanco en modo oscuro)
+      ctx.fillStyle = colors.textMain; 
+      ctx.font = '900 24px Inter'; 
+      ctx.fillText(assignment.teamCode || '---', col3_X, y + 5);
+
+      if (index < assignments.length - 1) {
+        ctx.strokeStyle = colors.border;
+        ctx.setLineDash([8, 12]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tableX + 40, y + 80);
+        ctx.lineTo(tableX + tableW - 40, y + 80);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     });
 
-    const footerY = totalHeight - 60;
-    ctx.fillStyle = isDark ? 'rgba(248, 250, 252, 0.2)' : '#94a3b8';
-    ctx.font = 'bold 18px Inter, sans-serif';
+    ctx.fillStyle = colors.textMuted;
+    ctx.font = 'bold 18px Inter';
     ctx.textAlign = 'center';
-    ctx.fillText(`DOCUMENTO GENERADO POR DRIVEFLOW LOGÍSTICA © ${new Date().getFullYear()}`, width / 2, footerY);
+    ctx.letterSpacing = "2px";
+    ctx.fillText('ROL OPERATIVO EXTRAÍDO DE DRIVEFLOW LOGÍSTICA', width / 2, totalHeight - 60);
 
     const link = document.createElement('a');
     link.download = `ROL_${generatedRole.storeCode}_${generatedRole.date}.png`;
     link.href = canvas.toDataURL('image/png', 1.0);
     link.click();
-    setToast({ message: 'Imagen descargada.', type: 'success' });
-  };
-
-  const handleDrop = (i: number) => {
-    if (draggedIndex === null || draggedIndex === i || !generatedRole) return;
-    const nextAssignments = [...generatedRole.assignments];
-    const sourceDriver = { driverId: nextAssignments[draggedIndex].driverId, driverName: nextAssignments[draggedIndex].driverName, teamCode: nextAssignments[draggedIndex].teamCode };
-    const targetDriver = { driverId: nextAssignments[i].driverId, driverName: nextAssignments[i].driverName, teamCode: nextAssignments[i].teamCode };
-    nextAssignments[draggedIndex] = { ...nextAssignments[draggedIndex], ...targetDriver };
-    nextAssignments[i] = { ...nextAssignments[i], ...sourceDriver };
-    setGeneratedRole({ ...generatedRole, assignments: nextAssignments });
-    setDraggedIndex(null);
+    setToast({ message: 'Imagen del rol descargada', type: 'success' });
   };
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl md:text-3xl font-black theme-text-main uppercase tracking-tighter leading-none">Generador de rol</h2>
       
-      {toast && <Toast message={toast.message} type={toast.type === 'info' ? 'success' : toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         <div className="lg:col-span-1" style={{ isolation: 'isolate' }}>
@@ -403,20 +502,16 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
                       </div>
                     </div>
                  )}
-                 {scheduleMode === 'FIXED' && (
-                    <div className="px-1 py-1 animate-in fade-in duration-300">
-                      <p className="text-[8px] font-bold theme-text-muted leading-tight uppercase opacity-60 italic">
-                        Se usarán los horarios fijos predeterminados de la sede seleccionada.
-                      </p>
-                    </div>
-                 )}
+                 <div className="flex items-center justify-between px-1">
+                    <span className="text-[8px] font-black theme-text-muted uppercase tracking-widest">Selección Manual</span>
+                    <button onClick={() => setManualSelection(!manualSelection)} className={`w-10 h-5 rounded-full relative transition-all flex items-center p-0.5 ${manualSelection ? 'bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.4)]' : 'bg-black/40'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transition-all transform ${manualSelection ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                 </div>
               </div>
-              
-              <div className="pt-2 relative">
-                <Button className="w-full py-4 uppercase font-black tracking-widest text-[10px] bg-blue-600 hover:bg-blue-500 border-2 border-blue-400/50 active:scale-95 transition-all" onClick={handleGenerate}>
-                  <Zap className="w-3 h-3" /> Generar Rol
-                </Button>
-              </div>
+              <Button className="w-full py-4 uppercase font-black tracking-widest text-[10px] bg-blue-600 hover:bg-blue-500 border-2 border-blue-400/50" onClick={handleGenerate}>
+                <Zap className="w-3 h-3" /> {manualSelection ? 'Escoger y Generar' : 'Generar Propuesta'}
+              </Button>
             </div>
           </div>
         </div>
@@ -428,75 +523,83 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
                 <div className="p-6 theme-bg-subtle border-b theme-border flex flex-col md:flex-row justify-between items-center gap-4">
                   <div className="text-center md:text-left">
                     <h3 className="text-2xl font-black theme-text-main uppercase tracking-tighter leading-none">{generatedRole.storeName}</h3>
-                    <p className="text-blue-500 font-mono font-black text-[9px] tracking-widest mt-1 uppercase opacity-80">
-                      {getNaturalDate(generatedRole.date).toUpperCase()}
-                    </p>
+                    <p className="text-blue-500 font-mono font-black text-[9px] tracking-widest mt-1 uppercase opacity-80">{getNaturalDate(generatedRole.date).toUpperCase()}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button 
-                      onClick={handleShareWhatsAppFormal} 
-                      disabled={isLocked}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-600/10 border border-emerald-500/20 text-emerald-500 transition-all shadow-md ${isLocked ? 'opacity-20 grayscale cursor-not-allowed' : 'hover:bg-emerald-600 hover:text-white'}`}
-                    >
-                      <MessageCircle size={14} /> WhatsApp
+                    <button onClick={() => { setIsReorderMode(!isReorderMode); setReorderSelectedIndex(null); }} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${isReorderMode ? 'bg-blue-600 text-white border-blue-500 shadow-lg' : 'bg-blue-600/10 text-blue-500 border-blue-500/20 hover:bg-blue-600 hover:text-white shadow-sm'}`}>
+                      <ArrowUpDown size={14} /> {isReorderMode ? 'Fijar' : 'Acomodar'}
                     </button>
-                    <button 
-                      onClick={() => { setIsReorderMode(!isReorderMode); setEditingIndices(new Set()); }} 
-                      disabled={isLocked}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${isLocked ? 'opacity-20 grayscale cursor-not-allowed' : (isReorderMode ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'theme-bg-subtle theme-border theme-text-muted hover:theme-text-main')}`}
-                    >
-                      {isReorderMode ? <CloseIcon size={14} /> : <MoveVertical size={14} />}
-                      {isReorderMode ? 'Cerrar' : 'Acomodar'}
-                    </button>
+                    {!isReorderMode && (
+                      <button onClick={() => { setSearchPicker(''); setIsAddingOperator(true); }} className="flex items-center gap-2 px-4 py-2 theme-bg-subtle text-emerald-500 rounded-xl hover:bg-emerald-600 hover:text-white transition-all border theme-border shadow-sm">
+                        <UserPlus size={14} /> <span className="text-[9px] font-black uppercase tracking-widest">Agregar</span>
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {isReorderMode && (
+                  <div className="bg-blue-600/5 border-b border-blue-500/20 p-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Info size={14} className="text-blue-500" />
+                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Manual de Reordenamiento</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-blue-400 uppercase leading-tight tracking-tight">
+                      Toque el nombre de un operador y luego otro para intercambiar sus turnos en la propuesta.
+                    </p>
+                  </div>
+                )}
                 
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                  <table className="w-full text-left">
+                  <table className="w-full text-left border-separate border-spacing-0">
                     <thead className="theme-bg-subtle theme-text-muted text-[8px] font-black uppercase tracking-widest border-b theme-border sticky top-0 z-10 backdrop-blur-md">
                       <tr>
-                        <th className="p-4 md:p-6 w-[40%] md:w-[240px]">Turno</th>
+                        <th className="p-4 md:p-6 w-[35%]">Turno</th>
                         <th className="p-4 md:p-6">Operador</th>
-                        <th className="p-4 md:p-6 text-right w-[80px]">Gestión</th>
+                        {!isReorderMode && <th className="p-4 md:p-6 text-right w-[95px]">Acción</th>}
                       </tr>
                     </thead>
                     <tbody className="theme-text-main divide-y theme-border">
                       {generatedRole.assignments.map((a, i) => {
-                        const isBeingEdited = editingIndices.has(i);
                         const times = a.schedule.toUpperCase().split(' A ');
-                        const entry = formatTo12h(times[0] || '---');
-                        const exit = formatTo12h(times[1] || '---');
+                        const entry = formatTo12h(times[0] || '---'), exit = formatTo12h(times[1] || '---');
+                        const isSelected = reorderSelectedIndex === i;
                         return (
-                          <tr key={i} onDragOver={isReorderMode ? e => e.preventDefault() : undefined} onDrop={isReorderMode ? e => { e.preventDefault(); handleDrop(i); } : undefined} className={`transition-all ${isBeingEdited ? 'bg-blue-500/5' : ''} ${draggedIndex === i ? 'opacity-30' : ''} hover:bg-black/5`}>
-                            <td className="p-4 md:p-6 align-middle">
-                              {isBeingEdited ? (
-                                <input className="w-full glass-input rounded-xl px-4 py-3 theme-text-main font-mono text-[12px] md:text-sm outline-none border-blue-500 shadow-xl" value={tempSchedules[i] || ''} onChange={e => setTempSchedules({...tempSchedules, [i]: e.target.value})} autoFocus />
-                              ) : (
-                                <div className="flex flex-col gap-1 w-fit">
-                                  <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/20">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
-                                    <span className="font-mono text-[10px] md:text-xs font-black text-emerald-600 whitespace-nowrap">{entry}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-500/20">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></div>
-                                    <span className="font-mono text-[10px] md:text-xs font-black text-rose-600 whitespace-nowrap">{exit}</span>
-                                  </div>
+                          <tr key={i} onClick={() => handleRowClickForReorder(i)} className={`transition-all hover:bg-black/5 ${isReorderMode ? 'cursor-pointer' : ''} ${isSelected ? 'bg-blue-600/20 shadow-inner' : ''}`}>
+                            <td className="p-4 md:p-6">
+                              <button 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  const currentTimes = a.schedule.toUpperCase().split(' A ');
+                                  setPickerEntry(time12To24(formatTo12h(currentTimes[0])));
+                                  setPickerExit(time12To24(formatTo12h(currentTimes[1])));
+                                  setEditingScheduleIndex(i); 
+                                }}
+                                className="flex flex-col gap-1 w-full text-left active:scale-95 transition-transform animate-subtle-pulse"
+                              >
+                                <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span className="font-mono text-[10px] font-black text-emerald-600 whitespace-nowrap">{entry}</span>
                                 </div>
-                              )}
+                                <div className="flex items-center gap-2 bg-rose-500/10 px-3 py-1 rounded-lg border border-rose-500/20">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                  <span className="font-mono text-[10px] font-black text-rose-600 whitespace-nowrap">{exit}</span>
+                                </div>
+                              </button>
                             </td>
                             <td className="p-4 md:p-6">
-                              <div className="flex items-center gap-2 -ml-2">
-                                {isReorderMode && <div draggable onDragStart={() => setDraggedIndex(i)} className="cursor-grab p-1.5 theme-bg-subtle rounded-lg border theme-border theme-text-muted"><GripVertical size={14} /></div>}
-                                <div className="flex flex-col min-w-0">
-                                  <span className="font-black uppercase tracking-tight text-xs md:text-base truncate theme-text-main leading-tight">{formatShortName(a.driverName)}</span>
-                                  <span className="theme-text-muted text-[8px] md:text-[9px] font-mono tracking-widest">{a.teamCode}</span>
-                                </div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-black uppercase tracking-tight text-xs md:text-base truncate theme-text-main leading-tight">{formatShortName(a.driverName)}</span>
+                                <span className="theme-text-muted text-[8px] md:text-[9px] font-mono tracking-widest">{a.teamCode}</span>
                               </div>
                             </td>
-                            <td className="p-4 md:p-6 text-right">
-                              {!isReorderMode && !isBeingEdited && <button onClick={() => startEditing(i, a.schedule)} className="p-2.5 theme-bg-subtle theme-text-muted rounded-xl hover:bg-blue-600 hover:text-white transition-all border theme-border shadow-sm"><Edit3 size={16} /></button>}
-                              {isBeingEdited && <button onClick={() => confirmEdit(i)} className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-lg animate-pulse"><Check size={16} /></button>}
-                            </td>
+                            {!isReorderMode && (
+                              <td className="p-4 md:p-6 text-right">
+                                <div className="flex justify-end gap-1.5">
+                                  <button onClick={(e) => { e.stopPropagation(); setSearchPicker(''); setSwappingIndex(i); }} title="Reemplazar" className="p-1.5 theme-bg-subtle text-blue-500 rounded-xl hover:bg-blue-600 hover:text-white transition-all border theme-border shadow-sm"><RefreshCcw size={14} /></button>
+                                  <button onClick={(e) => { e.stopPropagation(); setDeletingAssignmentIndex(i); }} title="Eliminar" className="p-1.5 theme-bg-subtle text-rose-500 rounded-xl border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all shadow-sm"><Trash2 size={14} /></button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -504,18 +607,18 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
                   </table>
                 </div>
                 <div className="p-5 theme-bg-subtle border-t theme-border flex flex-col sm:flex-row gap-3 relative z-[20]">
-                  <Button variant="success" className={`flex-1 py-4 font-black uppercase tracking-widest text-[10px] border border-emerald-500/20 ${isLocked || isReorderMode ? 'opacity-30 grayscale' : ''}`} onClick={handlePublish}>
-                    <Save className="w-4 h-4" /> Guardar Rol
+                  <Button variant="success" className={`flex-1 py-4 font-black uppercase text-[10px] tracking-widest border border-emerald-500/20 ${isReorderMode ? 'opacity-30' : ''}`} onClick={handlePublish}>
+                    <Save className="w-4 h-4" /> Guardar Rol Definitivo
                   </Button>
-                  <Button variant="outline" className={`flex-1 sm:flex-none px-6 py-4 font-black uppercase tracking-widest text-[10px] ${isLocked || isReorderMode ? 'opacity-30 grayscale' : ''}`} onClick={handleDownloadImage}>
-                    <Download className="w-4 h-4" /> Descargar
+                  <Button variant="outline" className={`flex-1 sm:flex-none px-6 py-4 font-black uppercase text-[10px] tracking-widest ${isReorderMode ? 'opacity-30' : ''}`} onClick={handleDownloadImage}>
+                    <Download className="w-4 h-4" /> Descargar Imagen
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center theme-text-muted opacity-20 m-12 border-4 border-dashed theme-border rounded-[3rem]">
                 <Zap className="w-16 h-16 mb-4 animate-pulse" />
-                <p className="font-black uppercase tracking-[0.4em] text-[10px]">Esperando Configuración</p>
+                <p className="font-black uppercase tracking-[0.4em] text-[10px]">Sin Propuesta Generada</p>
               </div>
             )}
           </GlassCard>
@@ -523,45 +626,15 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
       </div>
 
       <style>{`
-        button:disabled {
-          cursor: not-allowed !important;
-          pointer-events: none !important;
+        @keyframes subtle-pulse {
+          0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+          50% { transform: scale(1.02); opacity: 0.8; box-shadow: 0 0 10px 2px rgba(16, 185, 129, 0.2); }
+          100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .animate-subtle-pulse {
+          animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
-
-      {/* Modal Advertencia de Validaciones (Conductores Insuficientes, etc) */}
-      <Modal isOpen={showWarning.isOpen} onClose={() => setShowWarning({ ...showWarning, isOpen: false })} title="Atención">
-        <div className="text-center space-y-6 p-4">
-          <div className="w-16 h-16 bg-amber-500/10 rounded-full mx-auto flex items-center justify-center border border-amber-500/20"><AlertCircle className="w-8 h-8 text-amber-500" /></div>
-          <p className="theme-text-main font-bold uppercase text-[11px] leading-relaxed tracking-widest">{showWarning.msg}</p>
-          <Button className="w-full py-4 uppercase font-black text-[10px] tracking-widest" variant="warning" onClick={() => setShowWarning({ ...showWarning, isOpen: false })}>Entendido</Button>
-        </div>
-      </Modal>
-
-      {/* Modal Confirmación de Duplicados (Sede/Fecha ya existente) */}
-      <Modal isOpen={showDuplicateConfirm} onClose={() => setShowDuplicateConfirm(false)} title="Rol Existente">
-        <div className="text-center space-y-8 p-4 animate-in fade-in zoom-in-95 duration-300">
-           <div className="w-20 h-20 bg-blue-600/10 rounded-full mx-auto flex items-center justify-center border border-blue-500/20 shadow-[0_0_20px_rgba(37,99,235,0.1)]">
-              <Info className="w-10 h-10 text-blue-500" />
-           </div>
-           <div className="space-y-3">
-              <p className="theme-text-main font-black uppercase text-[13px] leading-relaxed tracking-tight px-4">
-                Ya tienes un rol para esta sede en esta fecha.
-              </p>
-              <p className="theme-text-muted font-bold uppercase text-[9px] tracking-[0.2em] opacity-70">
-                ¿Aún así desea generar el rol?
-              </p>
-           </div>
-           <div className="flex flex-col sm:flex-row gap-3">
-              <Button onClick={() => setShowDuplicateConfirm(false)} variant="outline" className="flex-1 py-4 uppercase font-black tracking-widest text-[10px]">
-                Cancelar
-              </Button>
-              <Button onClick={performGeneration} className="flex-[2] py-4 uppercase font-black tracking-widest text-[10px] bg-blue-600 shadow-xl shadow-blue-900/40">
-                Sí, Generar Propuesta
-              </Button>
-           </div>
-        </div>
-      </Modal>
     </div>
   );
 };

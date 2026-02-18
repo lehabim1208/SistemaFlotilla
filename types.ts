@@ -16,6 +16,12 @@ export enum AttendanceStatus {
   ABSENT = 'No asistió'
 }
 
+export enum IncidenceLevel {
+  LOW = 'Baja',
+  MEDIUM = 'Media',
+  HIGH = 'Alta/Crítica'
+}
+
 export interface Store {
   id: string;
   name: string;
@@ -30,6 +36,9 @@ export interface UserSettings {
   autoDateTime: boolean;
   manualDateTimeValue?: string;
   fontFamily: 'Inter' | 'Roboto' | 'Outfit' | 'Montserrat';
+  biometricsEnabled?: boolean;
+  pinCode?: string;
+  notificationsEnabled?: boolean;
 }
 
 export interface User {
@@ -48,7 +57,7 @@ export interface User {
 export interface AttendanceRecord {
   status: AttendanceStatus;
   reason?: string;
-  evidenceUrl?: string; // Base64 o URL
+  evidenceUrl?: string; 
   evidenceType?: 'image' | 'pdf';
   updatedAt: string;
 }
@@ -72,9 +81,7 @@ export interface Driver {
   qrCodeKey?: string;
   cofepris_expiration?: string;
   cofepris_status?: string;
-  // Mapa de finanzas: storeId -> { wage, gas }
   storeFinances: Record<string, DriverStoreFinance>;
-  // Fallbacks para compatibilidad
   dailyWage: number;
   dailyGas: number;
 }
@@ -87,12 +94,6 @@ export interface Assignment {
   attendance?: AttendanceRecord;
 }
 
-export interface RoleVersion {
-  assignments: Assignment[];
-  updatedAt: string;
-  adminId: string;
-}
-
 export interface DailyRole {
   id: string;
   storeId: string;
@@ -103,5 +104,29 @@ export interface DailyRole {
   adminId: string;
   createdAt: string;
   updatedAt?: string;
-  versions?: RoleVersion[];
+}
+
+export interface Incident {
+  id: string;
+  type: string;
+  level: IncidenceLevel;
+  description: string;
+  driverId?: string;
+  storeId?: string;
+  reporterId: string;
+  date: string;
+  location?: { lat: number; lng: number };
+  address?: string;
+  evidenceUrl?: string;
+  resolved: boolean;
+}
+
+export interface Note {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  color?: string;
+  is_pinned?: boolean;
+  created_at: string;
 }
