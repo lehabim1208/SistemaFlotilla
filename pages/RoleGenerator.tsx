@@ -338,14 +338,18 @@ export const RoleGenerator: React.FC<Props> = ({ currentUser, stores = [], drive
     ctx.fillRect(0, 0, width, 240);
     
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '900 64px Inter, sans-serif';
+    ctx.font = '900 60px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(generatedRole.storeName.toUpperCase(), width / 2, 110);
+    ctx.fillText(generatedRole.storeName.toUpperCase(), width / 2, 95);
     
-    ctx.font = '800 28px Inter, sans-serif';
+    ctx.font = '700 32px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillText(`[ ${generatedRole.storeCode} ]`, width / 2, 140);
+    
+    ctx.font = '800 24px Inter, sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.letterSpacing = "4px";
-    ctx.fillText(`ROL OPERATIVO • ${getNaturalDate(generatedRole.date).toUpperCase()}`, width / 2, 165);
+    ctx.fillText(`ROL OPERATIVO • ${getNaturalDate(generatedRole.date).toUpperCase()}`, width / 2, 185);
 
     const tableX = padding;
     const tableY = 220;
